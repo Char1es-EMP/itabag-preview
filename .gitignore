@@ -1,0 +1,9 @@
+# 本地备份快照
+备份/
+
+# ZCode 工作区配置
+.zcodeignore
+
+# 系统文件
+Thumbs.db
+.DS_Store
