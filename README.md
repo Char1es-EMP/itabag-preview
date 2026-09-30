@@ -1,5 +1,7 @@
 # 「VASH」痛窗预览器（本地复刻）
 
+**在线使用**：<https://char1es-emp.github.io/itabag-preview/>
+
 本项目复刻自 <https://toys.senriakane.com/vash/>，版权归原作者所有，仅供个人离线使用。
 抓取时间：2026-09-30。
 
