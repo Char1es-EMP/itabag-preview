@@ -91,6 +91,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
 .seg button{background:none;border:0;color:var(--dim);padding:6px 14px;font:inherit;cursor:pointer}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button.on{background:var(--accent);color:var(--accent-text);font-weight:700}
+.seg button:disabled{opacity:.35;cursor:default}
 #info{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
 #info span{white-space:nowrap}
 #info span.note:empty{display:none}
@@ -199,6 +200,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
   <main class="stage">
     <div class="toolbar">
       <div class="seg" id="bagSeg"></div>
+      <button class="btn" id="bagCfgBtn" title="自定义包型：痛板尺寸与背景图">⚙ 包型设置</button>
       <div class="seg" id="modeSeg">
         <button data-mode="full">全展开 · 15.5cm</button>
         <button data-mode="half">半遮挡 · 12cm</button>
@@ -276,6 +278,48 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
   </div>
 </div>
 
+<div class="tplOverlay" id="bagCfgOverlay" hidden>
+  <div class="tplWrap">
+    <header>自定义包型 <b>痛板尺寸与背景</b><button class="btn" id="bgcClose">✕ 关闭</button></header>
+    <div class="tplBody">
+      <div class="tplCtrls">
+        <div class="h">痛板尺寸 (cm)</div>
+        <div class="grid2">
+          <div class="f"><label>宽</label><input type="number" id="bgcW" step="0.1" min="5" max="200"></div>
+          <div class="f"><label>高</label><input type="number" id="bgcH" step="0.1" min="5" max="200"></div>
+        </div>
+        <div class="h">背景图片</div>
+        <div class="drop" id="bgcDrop"><b>点击选择图片</b><br>或拖入 / 粘贴到子页面</div>
+        <input type="file" id="bgcFile" accept="image/*" hidden>
+        <div class="hint" id="bgcImgInfo">未设置背景（显示痛板底色）</div>
+        <div class="btns" style="margin-top:8px">
+          <button class="btn" data-bfit="cover">铺满</button>
+          <button class="btn" data-bfit="contain">完整显示</button>
+          <button class="btn" data-bfit="center">居中</button>
+          <button class="btn" id="bgcClear">移除背景</button>
+        </div>
+        <div class="h">背景调整</div>
+        <div class="f"><label>图片宽度 (cm)</label>
+          <div class="rng"><input type="range" id="bgcIW" min="1" max="400" step="0.1"><input type="number" id="bgcIWN" step="0.1" min="1"></div>
+        </div>
+        <div class="grid2">
+          <div class="f"><label>水平偏移 (cm)</label><input type="number" id="bgcIX" step="0.1"></div>
+          <div class="f"><label>垂直偏移 (cm)</label><input type="number" id="bgcIY" step="0.1"></div>
+        </div>
+        <div class="f"><label>旋转 (°)</label>
+          <div class="rng"><input type="range" id="bgcIR" min="-180" max="180" step="0.5"><input type="number" id="bgcIRN" step="0.5"></div>
+        </div>
+        <div class="hint">这里只设置包型本身（痛板尺寸与背景图），与图片 / 模板的自定义相互独立。背景图自动裁剪于痛板内，垫在所有图层下方。</div>
+      </div>
+      <div class="tplStage"><canvas id="bgcCv"></canvas></div>
+    </div>
+    <footer>
+      <button class="btn" id="bgcCancel">取消</button>
+      <button class="btn pri" id="bgcSave">保存</button>
+    </footer>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    状态
@@ -292,8 +336,16 @@ const save=()=>{ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch
 const isLight=()=>document.body.classList.contains('light');
 const C=(d,l)=>isLight()?l:d;
 /* 包型预览器：新包型在 BAG_MODES 注册（ready:false 为占位），绘制按 S.bagMode 分支实现 */
-const BAG_MODES=[{id:'vash',name:'VASH 痛窗',ready:true},{id:'more',name:'更多包型',ready:false}];
+const BAG_MODES=[{id:'vash',name:'VASH 痛窗',ready:true},{id:'custom',name:'自定义包型',ready:true}];
 if(!BAG_MODES.some(m=>m.id===S.bagMode&&m.ready)) S.bagMode='vash';
+/* 自定义包型配置（与图片/模板自定义相互独立）：痛板尺寸 + 背景图，独立持久化 */
+let customBag={w:30,h:16,src:'',img:null,inner:{x:0,y:0,w:30,rot:0}};
+try{ Object.assign(customBag, JSON.parse(localStorage.getItem('itabagCustom.v1')||'{}')); }catch(e){}
+if(typeof customBag.inner!=='object'||!customBag.inner) customBag.inner={x:0,y:0,w:30,rot:0};
+if(customBag.src){ const cim=new Image(); cim.onload=()=>{ customBag.img=cim; draw(); }; cim.src=customBag.src; }
+const saveCustom=()=>{ const c={w:customBag.w,h:customBag.h,src:customBag.src,inner:customBag.inner};
+  try{ localStorage.setItem('itabagCustom.v1', JSON.stringify(c)); }
+  catch(e){ try{ localStorage.setItem('itabagCustom.v1', JSON.stringify({...c,src:''})); }catch(e2){} } };
 /* 图层：数组下标从小到大 = 从背景到前景；图片对象只存在内存中，不写入 localStorage */
 let layers=[], selId=null, uid=0;
 const newId=()=>'L'+(++uid);
@@ -304,6 +356,14 @@ const exportName=()=>{ const L=curLayer()||layers[layers.length-1]; return L?L.n
    几何（单位 cm，原点为痛窗层左上角）
    ============================================================ */
 function geo(){
+  if(S.bagMode==='custom'){
+    // 自定义包型：整块痛板完全可见（无包体遮挡），痛窗层四周留少量边距
+    const w=Math.max(5,Math.min(200,+customBag.w||30)), h=Math.max(5,Math.min(200,+customBag.h||16)), m=1.2;
+    const oW=w+2*m, oH=h, poly=[[m,0],[m+w,0],[m+w,h],[m,h]];
+    return {oW,oH,bW:w,bH:h,bagW:oW,bagH:oH, bx:m, by:0, yTop:0, yHalf:0,
+      xL:()=>m, xR:()=>m+w, slope:0, bag:{x0:0,y0:0,x1:oW},
+      full:poly, halfPoly:poly, flap:poly, widthAt:()=>w};
+  }
   const bagW=+S.bagW, bagH=+S.bagH, oW=+S.outerW, oH=+S.outerH, vT=+S.visTop, vB=+S.visBottom, vH=+S.visH, hH=+S.halfH, bW=+S.boardW, bH=+S.boardH;
   const yTop=oH-vH, yHalf=oH-hH;
   // 可视区左右斜边：从 (上边, yTop) 线性过渡到 (下边, oH)
@@ -418,6 +478,17 @@ function drawLayer(ctx,g,k,ox,oy,L){
   if(L.kind==='shape') drawShapeLayer(ctx,g,k,ox,oy,L);
   else drawImage(ctx,g,k,ox,oy,L);
 }
+/* 自定义包型：痛板背景图（在包型设置子页面中调整，裁剪于痛板内、垫在图层下方） */
+function drawBoardBackdrop(ctx,g,k,ox,oy){
+  const cb=customBag; if(!cb.img) return;
+  const w=cb.inner.w*k, h=w/imAspect(cb.img);
+  ctx.save();
+  ctx.translate(ox+(g.bx+g.bW/2+cb.inner.x)*k, oy+(g.by+g.bH/2+cb.inner.y)*k);
+  ctx.rotate(cb.inner.rot*Math.PI/180);
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(cb.img,-w/2,-h/2,w,h);
+  ctx.restore();
+}
 const FLAP='#0D0E10';
 const VX_ANGLE=22;            // VX21 加强筋：两组线各偏离竖直方向 22°，形成锐角 44° 的竖向菱格
 const VX_PITCH=1.3;
@@ -452,7 +523,9 @@ function drawBagSeams(ctx,g,k,X,Y,mode,vTop){
 }
 /* 绘制一个完整场景：k = 像素/厘米，(ox,oy) = 痛窗层左上角的像素位置；opt.view = 'window' | 'bag' */
 function drawScene(ctx,k,ox,oy,mode,opt){
-  const g=geo(), G='#FF4D8D', bag=opt.view==='bag', B=g.bag;
+  const g=geo(), G='#FF4D8D';
+  const customMode=opt.bag==='custom';
+  const bag=!customMode&&opt.view==='bag', B=g.bag;
   // 坐标对齐到设备像素：重合的水平/竖直边不再因抗锯齿叠加而漏出细缝
   const d=opt.dpr||1, X=x=>Math.round((ox+x*k)*d)/d, Y=y=>Math.round((oy+y*k)*d)/d;
   const R=(c,x0,y0,x1,y1)=>{ c.rect(X(x0),Y(y0),X(x1)-X(x0),Y(y1)-Y(y0)); };
@@ -466,6 +539,7 @@ function drawScene(ctx,k,ox,oy,mode,opt){
   ctx.save();
   ctx.beginPath(); R(ctx,g.bx,g.by,g.bx+g.bW,g.by+g.bH); ctx.clip();
   ctx.fillStyle=S.bg; ctx.fill();
+  if(customMode) drawBoardBackdrop(ctx,g,k,ox,oy);   // 自定义包型：背景图垫在图层下方
   for(const L of layers) if(L.visible) drawLayer(ctx,g,k,ox,oy,L);
   if(!layers.length){
     ctx.fillStyle='#8b959c'; ctx.font=`600 ${k*0.8}px "Chakra Petch","Noto Sans SC",sans-serif`; ctx.textAlign='center';
@@ -473,6 +547,7 @@ function drawScene(ctx,k,ox,oy,mode,opt){
   }
   ctx.restore();
 
+  if(!customMode){
   // 包体：先在独立图层上不透明地画好，再整体按不透明度叠加（避免各块重叠处颜色加深）
   const L=document.createElement('canvas'); L.width=ctx.canvas.width; L.height=ctx.canvas.height;
   const lc=L.getContext('2d'); lc.setTransform(ctx.getTransform());
@@ -548,6 +623,7 @@ function drawScene(ctx,k,ox,oy,mode,opt){
     ctx.fillText('包盖（半放下）', ox+g.oW/2*k, oy+(top+vTop)/2*k);
     ctx.restore();
   }
+  }   // if(!customMode)：自定义包型没有包体与遮挡
 
   if(!opt.guides) return;
   // 参考线
@@ -568,7 +644,7 @@ function drawScene(ctx,k,ox,oy,mode,opt){
   lbl(`可视区上边 ${fmt(vw)}`, ox+g.oW/2*k, oy+(vTop+0.6)*k, 'center', G);
   lbl(`下边 ${fmt(+S.visBottom)}`, ox+g.oW/2*k, oy+(g.oH-0.55)*k, 'center', G);
   if(bag) lbl(`包体 ${fmt(g.bagW)} × ${fmt(g.bagH)}`, ox+g.oW/2*k, oy+(B.y0-0.55)*k, 'center', C('rgba(255,255,255,.7)','rgba(0,0,0,.65)'));
-  else lbl(`痛窗层 ${fmt(g.oW)} × ${fmt(g.oH)}`, ox+g.oW/2*k, oy-0.55*k, 'center', C('rgba(255,255,255,.7)','rgba(0,0,0,.65)'));
+  else if(!customMode) lbl(`痛窗层 ${fmt(g.oW)} × ${fmt(g.oH)}`, ox+g.oW/2*k, oy-0.55*k, 'center', C('rgba(255,255,255,.7)','rgba(0,0,0,.65)'));
   lbl(`痛板 ${fmt(g.bW)} × ${fmt(g.bH)}（导出范围）`, ox+(g.bx+0.2)*k, oy+(g.oH+0.75)*k, 'left', G);
   // 右侧高度标注
   const ax=ox+((bag?B.x1:g.oW)+0.6)*k;
@@ -595,16 +671,17 @@ function layout(rw,rh,view,pad=PAD){
 let views=[];
 function buildViews(){
   const box=document.getElementById('views'); box.innerHTML=''; views=[];
-  const modes = S.mode==='both' ? ['full','half'] : [S.mode];
+  const customMode=S.bagMode==='custom';
+  const modes = customMode ? ['full'] : (S.mode==='both' ? ['full','half'] : [S.mode]);
   const names={full:'全展开 · 可视高 '+fmt(S.visH)+'cm', half:'半遮挡 · 可视高 '+fmt(S.halfH)+'cm'};
   modes.forEach((m,i)=>{
     const fig=document.createElement('figure'); fig.className='view';
-    fig.innerHTML=`<figcaption><b>0${i+1}</b> ${names[m]}</figcaption><div class="cv"><canvas></canvas></div>`;
+    fig.innerHTML=`<figcaption><b>0${i+1}</b> ${customMode?'自定义包型 · 痛板 '+fmt(+customBag.w)+' × '+fmt(+customBag.h)+'cm':names[m]}</figcaption><div class="cv"><canvas></canvas></div>`;
     box.appendChild(fig);
     const cv=fig.querySelector('canvas'); const v={mode:m,cv,k:1,ox:0,oy:0}; views.push(v); bindCanvas(v);
   });
-  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
-  document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on',b.dataset.view===S.view));
+  document.querySelectorAll('#modeSeg button').forEach(b=>{ b.classList.toggle('on',!customMode&&b.dataset.mode===S.mode); b.disabled=customMode; });
+  document.querySelectorAll('#viewSeg button').forEach(b=>{ b.classList.toggle('on',!customMode&&b.dataset.view===S.view); b.disabled=customMode; });
   draw();
 }
 /* 选中图层的外框与手柄（仅交互预览用，不进入任何导出）。
@@ -823,7 +900,8 @@ function syncControls(){
   $('guides').checked=S.guides;
   $('bg').value=S.bg; $('bgV').textContent=S.bg.toUpperCase();
   $('dpi').value=S.dpi; $('fmt').value=S.fmt; $('bleed').value=S.bleed; $('bleedN').value=S.bleed;
-  document.querySelectorAll('[data-dim]').forEach(i=>i.value=S[i.dataset.dim]);
+  document.querySelectorAll('[data-dim]').forEach(i=>{ i.value=S[i.dataset.dim]; i.disabled=S.bagMode==='custom'; });   // 自定义包型的尺寸在包型设置中调整
+  $('resetDims').disabled=S.bagMode==='custom';
 }
 function commit(){ save(); syncControlsLight(); syncLayerRows(); draw(); }
 function syncControlsLight(){
@@ -853,7 +931,7 @@ function syncBagColor(){
   $('bagPresets').querySelectorAll('button').forEach(b=>b.classList.toggle('pri',b.dataset.c.toUpperCase()===S.bagColor.toUpperCase()));
 }
 $('bagColor').oninput=e=>{ S.bagColor=e.target.value; syncBagColor(); commit(); };
-document.querySelectorAll('#viewSeg button').forEach(b=>b.onclick=()=>{ S.view=b.dataset.view; save(); buildViews(); });
+document.querySelectorAll('#viewSeg button').forEach(b=>b.onclick=()=>{ if(b.disabled) return; S.view=b.dataset.view; save(); buildViews(); });
 /* 包型预览器切换：切换后重建全部预览视图 */
 function buildBagSeg(){
   const seg=$('bagSeg');
@@ -863,6 +941,7 @@ function buildBagSeg(){
     b.onclick=()=>{
       if(b.disabled||S.bagMode===b.dataset.bag) return;
       S.bagMode=b.dataset.bag; save(); buildBagSeg(); buildViews();
+      if(b.dataset.bag==='custom'&&!customBag.img) openBagCfg();   // 首次切到自定义包型时打开设置
     };
   });
 }
@@ -886,9 +965,10 @@ document.querySelectorAll('[data-dim]').forEach(i=>i.addEventListener('input',()
 }));
 $('resetDims').onclick=()=>{ Object.assign(S,DIMS); save(); syncControls(); buildViews(); };
 document.querySelectorAll('[data-fit]').forEach(b=>b.onclick=()=>{ const L=curLayer(); if(L) fit(L,b.dataset.fit); });
-document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ S.mode=b.dataset.mode; save(); buildViews(); });
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(b.disabled) return; S.mode=b.dataset.mode; save(); buildViews(); });
 document.addEventListener('keydown',e=>{
   if(tplEditor){ if(e.key==='Escape') closeTpl(); return; }   // 子页面打开时主页面快捷键失效
+  if(bagCfg){ if(e.key==='Escape') closeBagCfg(); return; }
   const L=curLayer();
   if(!L || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
   const d=e.shiftKey?1:0.1, m={ArrowLeft:[-d,0],ArrowRight:[d,0],ArrowUp:[0,-d],ArrowDown:[0,d]}[e.key];
@@ -984,10 +1064,10 @@ $('lyClear').onclick=()=>{ if(!layers.length||!confirm('清空所有图层？'))
   layers=[]; selId=null; renderLayers(); syncControls(); commit(); };
 $('drop').onclick=()=>$('file').click();
 $('file').onchange=e=>{ addFiles(e.target.files); e.target.value=''; };
-['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); (tplEditor?$('tplDrop'):$('drop')).classList.add('over'); }));
-['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); $('drop').classList.remove('over'); $('tplDrop').classList.remove('over'); }));
-document.addEventListener('drop',e=>{ (tplEditor?tplAddFiles:addFiles)(e.dataTransfer.files); });
-document.addEventListener('paste',e=>{ const it=[...e.clipboardData.items].find(i=>i.type.startsWith('image/')); if(it) (tplEditor?tplAddFiles:addFiles)([it.getAsFile()]); });
+['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); $(tplEditor?'tplDrop':bagCfg?'bgcDrop':'drop').classList.add('over'); }));
+['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); $('drop').classList.remove('over'); $('tplDrop').classList.remove('over'); $('bgcDrop').classList.remove('over'); }));
+document.addEventListener('drop',e=>{ (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)(e.dataTransfer.files); });
+document.addEventListener('paste',e=>{ const it=[...e.clipboardData.items].find(i=>i.type.startsWith('image/')); if(it) (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)([it.getAsFile()]); });
 
 /* ============================================================
    模板制作子页面（矩形 / 圆形，独立于主页面）
@@ -1193,6 +1273,127 @@ tplCv.addEventListener('wheel',e=>{
 new ResizeObserver(()=>drawTpl()).observe(tplCv.parentElement);
 
 /* ============================================================
+   自定义包型设置子页面（痛板尺寸 + 背景图，独立于图片 / 模板自定义）
+   ============================================================ */
+let bagCfg=null;
+function openBagCfg(){
+  bagCfg={w:+customBag.w, h:+customBag.h, img:customBag.img, src:customBag.src, inner:{...customBag.inner}, k:1};
+  $('bgcW').value=customBag.w; $('bgcH').value=customBag.h;
+  $('bagCfgOverlay').hidden=false;
+  syncBagCfg(); drawBagCfg();
+}
+function closeBagCfg(){ $('bagCfgOverlay').hidden=true; bagCfg=null; }
+function syncBagCfg(){ if(!bagCfg) return; syncBagCfgLight();
+  $('bgcImgInfo').textContent=bagCfg.img?`已载入 ${bagCfg.img.naturalWidth} × ${bagCfg.img.naturalHeight} px`:'未设置背景（显示痛板底色）'; }
+function syncBagCfgLight(){
+  const a=document.activeElement, t=bagCfg.inner;
+  [['bgcIW',t.w],['bgcIWN',t.w],['bgcIX',t.x],['bgcIY',t.y],['bgcIR',t.rot],['bgcIRN',t.rot]]
+    .forEach(([id,v])=>{ if($(id)!==a) $(id).value=(+v).toFixed(2); });
+}
+function bagCfgAddFiles(list){
+  if(!bagCfg) return;
+  const f=[...list].find(f=>f&&f.type.startsWith('image/')); if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ if(!bagCfg) return;
+    const im=new Image();
+    im.onload=()=>{ if(!bagCfg) return;
+      bagCfg.img=im; bagCfg.src=rd.result;
+      $('bgcImgInfo').textContent=`${f.name||'粘贴的图片'} · ${im.naturalWidth} × ${im.naturalHeight} px`;
+      fitBagBg('cover');   // 新背景默认铺满痛板
+    };
+    im.src=rd.result;
+  };
+  rd.readAsDataURL(f);   // dataURL：可随配置持久化
+}
+function fitBagBg(kind){
+  const t=bagCfg; if(!t||!t.img) return;
+  const asp=imAspect(t.img), a=t.inner.rot*Math.PI/180;
+  const w=Math.max(5,+t.w||30), h=Math.max(5,+t.h||16);
+  if(kind==='cover'){
+    const c=coverCalc([[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]], t.inner.rot, asp);
+    t.inner.w=+c.w.toFixed(3); t.inner.x=+c.x.toFixed(3); t.inner.y=+c.y.toFixed(3);
+  } else if(kind==='contain'){
+    const c=Math.abs(Math.cos(a)), s=Math.abs(Math.sin(a));
+    t.inner.w=+Math.min(w/(c+s/asp), h/(s+c/asp)).toFixed(3); t.inner.x=0; t.inner.y=0;
+  } else { t.inner.x=0; t.inner.y=0; }
+  syncBagCfgLight(); drawBagCfg();
+}
+function drawBagCfg(){
+  if(!bagCfg || $('bagCfgOverlay').hidden) return;
+  const t=bagCfg, cv=$('bgcCv'), dpr=window.devicePixelRatio||1;
+  const box=cv.parentElement.getBoundingClientRect(), rw=box.width, rh=box.height;
+  if(!rw||!rh) return;
+  cv.width=Math.round(rw*dpr); cv.height=Math.round(rh*dpr);
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,rw,rh);
+  const w=Math.max(5,+t.w||30), h=Math.max(5,+t.h||16);
+  const pad=46, k=Math.min((rw-pad*2)/w,(rh-pad*2)/h);
+  t.k=k;
+  const path=()=>{ ctx.beginPath(); ctx.rect(-w*k/2,-h*k/2,w*k,h*k); };
+  ctx.save(); ctx.translate(rw/2,rh/2);
+  path(); ctx.fillStyle=S.bg; ctx.fill();
+  ctx.save(); path(); ctx.clip();
+  if(t.img){
+    const iw=t.inner.w*k, ih=iw/imAspect(t.img);
+    ctx.translate(t.inner.x*k, t.inner.y*k); ctx.rotate(t.inner.rot*Math.PI/180);
+    ctx.imageSmoothingQuality='high';
+    ctx.drawImage(t.img,-iw/2,-ih/2,iw,ih);
+  }
+  ctx.restore();
+  path(); ctx.setLineDash([6,4]); ctx.strokeStyle=C('rgba(255,255,255,.5)','rgba(0,0,0,.45)'); ctx.lineWidth=1; ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle=C('rgba(63,200,210,.6)','rgba(10,125,138,.6)'); ctx.beginPath();
+  ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.moveTo(0,-9); ctx.lineTo(0,9); ctx.stroke();
+  ctx.fillStyle=C('#8b959c','#68737b'); ctx.font='600 11px "Chakra Petch","Noto Sans SC",sans-serif'; ctx.textAlign='center';
+  ctx.fillText(`痛板 ${fmt(w)} × ${fmt(h)} cm`, 0, h*k/2+20);
+  ctx.restore();
+}
+$('bagCfgBtn').onclick=()=>openBagCfg();
+$('bgcClose').onclick=closeBagCfg; $('bgcCancel').onclick=closeBagCfg;
+$('bgcSave').onclick=()=>{
+  if(!bagCfg) return;
+  Object.assign(customBag,{w:bagCfg.w, h:bagCfg.h, img:bagCfg.img, src:bagCfg.src, inner:{...bagCfg.inner}});
+  saveCustom();
+  closeBagCfg(); buildViews(); syncControls();   // 主页面即时同步（含尺寸设置输入框的禁用态）
+};
+$('bgcClear').onclick=()=>{ if(!bagCfg) return; bagCfg.img=null; bagCfg.src=''; syncBagCfg(); drawBagCfg(); };
+const bgcNum=(id,fn)=>$(id).addEventListener('input',e=>{ if(!bagCfg) return;
+  const v=parseFloat(e.target.value); if(isNaN(v)) return; fn(v); drawBagCfg(); });
+bgcNum('bgcW',v=>bagCfg.w=Math.max(5,Math.min(200,v)));
+bgcNum('bgcH',v=>bagCfg.h=Math.max(5,Math.min(200,v)));
+bgcNum('bgcIW',v=>bagCfg.inner.w=Math.max(1,Math.min(400,v)));
+bgcNum('bgcIWN',v=>bagCfg.inner.w=Math.max(1,Math.min(400,v)));
+bgcNum('bgcIX',v=>bagCfg.inner.x=v);
+bgcNum('bgcIY',v=>bagCfg.inner.y=v);
+bgcNum('bgcIR',v=>bagCfg.inner.rot=Math.max(-180,Math.min(180,v)));
+bgcNum('bgcIRN',v=>bagCfg.inner.rot=Math.max(-180,Math.min(180,v)));
+document.querySelectorAll('[data-bfit]').forEach(b=>b.onclick=()=>{ if(bagCfg) fitBagBg(b.dataset.bfit); });
+$('bgcDrop').onclick=()=>$('bgcFile').click();
+$('bgcFile').onchange=e=>{ bagCfgAddFiles(e.target.files); e.target.value=''; };
+// 子页面预览交互：拖动移动背景，滚轮缩放
+const bgcCv=$('bgcCv'); let bgcGest=null;
+bgcCv.addEventListener('pointerdown',e=>{
+  if(!bagCfg||!bagCfg.img) return;
+  const r=bgcCv.getBoundingClientRect(), p=[e.clientX-r.left, e.clientY-r.top];
+  bgcGest={p0:p, x0:bagCfg.inner.x, y0:bagCfg.inner.y, k:bagCfg.k};
+  try{ bgcCv.setPointerCapture(e.pointerId); }catch(_){}
+  bgcCv.classList.add('drag');
+});
+bgcCv.addEventListener('pointermove',e=>{
+  if(!bgcGest) return;
+  const r=bgcCv.getBoundingClientRect(), p=[e.clientX-r.left, e.clientY-r.top];
+  bagCfg.inner.x=+(bgcGest.x0+(p[0]-bgcGest.p0[0])/bgcGest.k).toFixed(3);
+  bagCfg.inner.y=+(bgcGest.y0+(p[1]-bgcGest.p0[1])/bgcGest.k).toFixed(3);
+  syncBagCfgLight(); drawBagCfg();
+});
+const bgcEnd=()=>{ bgcGest=null; bgcCv.classList.remove('drag'); };
+bgcCv.addEventListener('pointerup',bgcEnd); bgcCv.addEventListener('pointercancel',bgcEnd);
+bgcCv.addEventListener('wheel',e=>{
+  if(!bagCfg||!bagCfg.img) return; e.preventDefault();
+  bagCfg.inner.w=+Math.max(1,Math.min(400, bagCfg.inner.w*Math.exp(-e.deltaY*0.0015))).toFixed(3);
+  syncBagCfgLight(); drawBagCfg();
+},{passive:false});
+new ResizeObserver(()=>drawBagCfg()).observe(bgcCv.parentElement);
+
+/* ============================================================
    导出
    ============================================================ */
 const CRC=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[n]=c>>>0; } return t; })();
@@ -1223,6 +1424,7 @@ $('expBoard').onclick=async e=>{
     const cv=document.createElement('canvas'); cv.width=Math.round((g.bW+2*b)*k); cv.height=Math.round((g.bH+2*b)*k);
     const ctx=cv.getContext('2d');
     ctx.fillStyle=S.bg; ctx.fillRect(0,0,cv.width,cv.height);
+    if(S.bagMode==='custom') drawBoardBackdrop(ctx,g,k,-(g.bx-b)*k,-(g.by-b)*k);
     // 以痛窗层坐标绘制，原点平移到痛板左上角（含出血）
     for(const L of layers) if(L.visible) drawLayer(ctx,g,k,-(g.bx-b)*k,-(g.by-b)*k,L);
     await toFile(cv,S.fmt,dpi,`${exportName()}-痛板${fmt(g.bW)}x${fmt(g.bH)}cm-${dpi}dpi${b?`-出血${S.bleed}mm`:''}.${S.fmt}`);
