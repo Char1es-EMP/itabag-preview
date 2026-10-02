@@ -708,9 +708,7 @@ function drawScene(ctx,k,ox,oy,mode,opt){
   const lw=Math.max(1,k*0.035);
   ctx.strokeStyle=C('rgba(255,255,255,.35)','rgba(0,0,0,.4)'); ctx.lineWidth=lw; ctx.strokeRect(ox,oy,g.oW*k,g.oH*k);
   ctx.strokeStyle=G; ctx.setLineDash([k*0.3,k*0.2]); ctx.strokeRect(ox+g.bx*k, oy+g.by*k, g.bW*k, g.bH*k);
-  if(!customMode){   // 自定义包型：不标记可视区上下边
-    ctx.setLineDash([]); ctx.lineWidth=lw*1.6; P(ctx,vis); ctx.stroke();
-  }
+  ctx.setLineDash([]); ctx.lineWidth=lw*1.6; P(ctx,vis); ctx.stroke();
   // 尺寸标注（带深色底衬，压在图片上也清晰）
   const fs=Math.max(10,k*0.5);
   ctx.font=`600 ${fs}px "Outfit","Noto Sans SC",sans-serif`; ctx.textBaseline='middle';
@@ -720,18 +718,20 @@ function drawScene(ctx,k,ox,oy,mode,opt){
     ctx.fillStyle=color; ctx.textAlign=align; ctx.fillText(t,x,y);
   };
   const vw=g.widthAt(vTop), vh=g.oH-vTop;
-  if(!customMode){   // 自定义包型：不显示可视区上下边标注
+  if(!customMode){
     lbl(`可视区上边 ${fmt(vw)}`, ox+g.oW/2*k, oy+(vTop+0.6)*k, 'center', G);
     lbl(`下边 ${fmt(+S.visBottom)}`, ox+g.oW/2*k, oy+(g.oH-0.55)*k, 'center', G);
   }
   if(bag) lbl(`包体 ${fmt(g.bagW)} × ${fmt(g.bagH)}`, ox+g.oW/2*k, oy+(B.y0-0.55)*k, 'center', C('rgba(255,255,255,.7)','rgba(0,0,0,.65)'));
   else if(!customMode) lbl(`痛窗层 ${fmt(g.oW)} × ${fmt(g.oH)}`, ox+g.oW/2*k, oy-0.55*k, 'center', C('rgba(255,255,255,.7)','rgba(0,0,0,.65)'));
   lbl(`痛板 ${fmt(g.bW)} × ${fmt(g.bH)}（导出范围）`, ox+(g.bx+0.2)*k, oy+(g.oH+0.75)*k, 'left', G);
-  // 右侧高度标注
-  const ax=ox+((bag?B.x1:g.oW)+0.6)*k;
-  ctx.beginPath(); ctx.moveTo(ax,oy+vTop*k); ctx.lineTo(ax,oy+g.oH*k); ctx.moveTo(ax-k*0.2,oy+vTop*k); ctx.lineTo(ax+k*0.2,oy+vTop*k);
-  ctx.moveTo(ax-k*0.2,oy+g.oH*k); ctx.lineTo(ax+k*0.2,oy+g.oH*k); ctx.lineWidth=lw; ctx.strokeStyle=G; ctx.stroke();
-  ctx.save(); ctx.translate(ax+k*0.55, oy+(vTop+vh/2)*k); ctx.rotate(Math.PI/2); lbl(`可视高 ${fmt(vh)}`,0,0,'center',G); ctx.restore();
+  if(!customMode){
+    // 右侧高度标注
+    const ax=ox+((bag?B.x1:g.oW)+0.6)*k;
+    ctx.beginPath(); ctx.moveTo(ax,oy+vTop*k); ctx.lineTo(ax,oy+g.oH*k); ctx.moveTo(ax-k*0.2,oy+vTop*k); ctx.lineTo(ax+k*0.2,oy+vTop*k);
+    ctx.moveTo(ax-k*0.2,oy+g.oH*k); ctx.lineTo(ax+k*0.2,oy+g.oH*k); ctx.lineWidth=lw; ctx.strokeStyle=G; ctx.stroke();
+    ctx.save(); ctx.translate(ax+k*0.55, oy+(vTop+vh/2)*k); ctx.rotate(Math.PI/2); lbl(`可视高 ${fmt(vh)}`,0,0,'center',G); ctx.restore();
+  }
   ctx.restore();
 }
 const fmt=n=>String(+(+n).toFixed(2));
