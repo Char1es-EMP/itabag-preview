@@ -1,4 +1,4 @@
-# 「VASH」痛窗预览器（本地复刻）
+# 痛包预览模拟器（原「VASH」痛窗预览器 · 本地复刻）
 
 **在线使用**：<https://char1es-emp.github.io/itabag-preview/>
 
