@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>「VASH」痛窗预览器</title>
+<title>痛包预览模拟器</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Noto+Sans+SC:wght@500;700&display=swap">
@@ -121,7 +121,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
   <aside class="panel">
     <header class="brand">
       <div class="logo">IT</div>
-      <div><h1>「VASH」痛窗预览器</h1><p>VASH ITA-BAG WINDOW · 30 × 16 CM BOARD</p></div>
+      <div><h1>痛包预览模拟器</h1><p>ITA-BAG PREVIEW SIMULATOR</p></div>
     </header>
     <div class="controls">
       <div class="h">图片</div>
@@ -292,7 +292,12 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
           <div class="f"><label>宽</label><input type="number" id="bgcW" step="0.1" min="5" max="200"></div>
           <div class="f"><label>高</label><input type="number" id="bgcH" step="0.1" min="5" max="200"></div>
         </div>
-        <div class="f"><label>包体边距 (cm，痛板四周露出的背景宽度)</label><input type="number" id="bgcPad" step="0.1" min="0" max="20"></div>
+        <div class="h">包体大小 (cm)</div>
+        <div class="grid2">
+          <div class="f"><label>宽</label><input type="number" id="bgcBW" step="0.1" min="5" max="400"></div>
+          <div class="f"><label>高</label><input type="number" id="bgcBH" step="0.1" min="5" max="400"></div>
+        </div>
+        <div class="hint">痛板居中放在包体上；包体小于痛板时按痛板尺寸显示。</div>
         <div class="h">包体背景图（垫在痛板后方）</div>
         <div class="drop" id="bgcDrop"><b>点击选择图片</b><br>或拖入 / 粘贴到子页面</div>
         <input type="file" id="bgcFile" accept="image/*" hidden>
@@ -344,11 +349,14 @@ const C=(d,l)=>isLight()?l:d;
 const BAG_MODES=[{id:'vash',name:'VASH 痛窗',ready:true},{id:'custom',name:'自定义包型',ready:true}];
 if(!BAG_MODES.some(m=>m.id===S.bagMode&&m.ready)) S.bagMode='vash';
 /* 自定义包型配置（与图片/模板自定义相互独立）：痛板尺寸 + 背景图，独立持久化 */
-let customBag={w:30,h:16,pad:3,src:'',img:null,inner:{x:0,y:0,w:30,rot:0}};
-try{ Object.assign(customBag, JSON.parse(localStorage.getItem('itabagCustom.v2')||'{}')); }catch(e){}
+let customBag={w:30,h:16,bagW:36,bagH:22,src:'',img:null,inner:{x:0,y:0,w:30,rot:0}};
+try{ const s=JSON.parse(localStorage.getItem('itabagCustom.v2')||'{}');
+  if(s.pad!=null&&s.bagW==null){ s.bagW=+s.w+2*+s.pad; s.bagH=+s.h+2*+s.pad; }   // 旧配置：边距换算为包体尺寸
+  Object.assign(customBag, s);
+}catch(e){}
 if(typeof customBag.inner!=='object'||!customBag.inner) customBag.inner={x:0,y:0,w:30,rot:0};
 if(customBag.src){ const cim=new Image(); cim.onload=()=>{ customBag.img=cim; draw(); }; cim.src=customBag.src; }
-const saveCustom=()=>{ const c={w:customBag.w,h:customBag.h,pad:customBag.pad,src:customBag.src,inner:customBag.inner};
+const saveCustom=()=>{ const c={w:customBag.w,h:customBag.h,bagW:customBag.bagW,bagH:customBag.bagH,src:customBag.src,inner:customBag.inner};
   try{ localStorage.setItem('itabagCustom.v2', JSON.stringify(c)); }
   catch(e){ try{ localStorage.setItem('itabagCustom.v2', JSON.stringify({...c,src:''})); }catch(e2){} } };
 /* 图层：数组下标从小到大 = 从背景到前景；图片对象只存在内存中，不写入 localStorage */
@@ -362,12 +370,12 @@ const exportName=()=>{ const L=curLayer()||layers[layers.length-1]; return L?L.n
    ============================================================ */
 function geo(){
   if(S.bagMode==='custom'){
-    // 自定义包型：痛板居中放在包体背景上，四周留出「包体边距」露出背景
+    // 自定义包型：痛板居中放在包体上，包体大小可直接设定（不小于痛板）
     const w=Math.max(5,Math.min(200,+customBag.w||30)), h=Math.max(5,Math.min(200,+customBag.h||16));
-    const p=Math.max(0,Math.min(20,+customBag.pad||0));
-    const oW=w+2*p, oH=h+2*p, poly=[[p,p],[p+w,p],[p+w,p+h],[p,p+h]];
-    return {oW,oH,bW:w,bH:h,bagW:oW,bagH:oH, bx:p, by:p, yTop:p, yHalf:p,
-      xL:()=>p, xR:()=>p+w, slope:0, bag:{x0:0,y0:0,x1:oW},
+    const bw=Math.max(w,Math.min(400,+customBag.bagW||w+6)), bh=Math.max(h,Math.min(400,+customBag.bagH||h+6));
+    const px=(bw-w)/2, py=(bh-h)/2, poly=[[px,py],[px+w,py],[px+w,py+h],[px,py+h]];
+    return {oW:bw,oH:bh,bW:w,bH:h,bagW:bw,bagH:bh, bx:px, by:py, yTop:py, yHalf:py,
+      xL:()=>px, xR:()=>px+w, slope:0, bag:{x0:0,y0:0,x1:bw},
       full:poly, halfPoly:poly, flap:poly, widthAt:()=>w};
   }
   const bagW=+S.bagW, bagH=+S.bagH, oW=+S.outerW, oH=+S.outerH, vT=+S.visTop, vB=+S.visBottom, vH=+S.visH, hH=+S.halfH, bW=+S.boardW, bH=+S.boardH;
@@ -1294,8 +1302,9 @@ new ResizeObserver(()=>drawTpl()).observe(tplCv.parentElement);
    ============================================================ */
 let bagCfg=null;
 function openBagCfg(){
-  bagCfg={w:+customBag.w, h:+customBag.h, pad:+customBag.pad, img:customBag.img, src:customBag.src, inner:{...customBag.inner}, k:1};
-  $('bgcW').value=customBag.w; $('bgcH').value=customBag.h; $('bgcPad').value=customBag.pad;
+  bagCfg={w:+customBag.w, h:+customBag.h, bagW:+customBag.bagW, bagH:+customBag.bagH, img:customBag.img, src:customBag.src, inner:{...customBag.inner}, k:1};
+  $('bgcW').value=customBag.w; $('bgcH').value=customBag.h;
+  $('bgcBW').value=customBag.bagW; $('bgcBH').value=customBag.bagH;
   $('bagCfgOverlay').hidden=false;
   syncBagCfg(); drawBagCfg();
 }
@@ -1325,8 +1334,8 @@ function bagCfgAddFiles(list){
 function fitBagBg(kind){
   const t=bagCfg; if(!t||!t.img) return;
   const asp=imAspect(t.img), a=t.inner.rot*Math.PI/180;
-  const w=Math.max(5,+t.w||30), h=Math.max(5,+t.h||16), p=Math.max(0,Math.min(20,+t.pad||0));
-  const oW=w+2*p, oH=h+2*p;   // 包体范围 = 痛板 + 四周包体边距
+  const w=Math.max(5,+t.w||30), h=Math.max(5,+t.h||16);
+  const oW=Math.max(w,+t.bagW||w+6), oH=Math.max(h,+t.bagH||h+6);   // 包体范围（不小于痛板）
   if(kind==='cover'){
     const c=coverCalc([[-oW/2,-oH/2],[oW/2,-oH/2],[oW/2,oH/2],[-oW/2,oH/2]], t.inner.rot, asp);
     t.inner.w=+c.w.toFixed(3); t.inner.x=+c.x.toFixed(3); t.inner.y=+c.y.toFixed(3);
@@ -1343,8 +1352,8 @@ function drawBagCfg(){
   if(!rw||!rh) return;
   cv.width=Math.round(rw*dpr); cv.height=Math.round(rh*dpr);
   const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,rw,rh);
-  const w=Math.max(5,+t.w||30), h=Math.max(5,+t.h||16), p=Math.max(0,Math.min(20,+t.pad||0));
-  const oW=w+2*p, oH=h+2*p;
+  const w=Math.max(5,+t.w||30), h=Math.max(5,+t.h||16);
+  const oW=Math.max(w,+t.bagW||w+6), oH=Math.max(h,+t.bagH||h+6);
   const vp=46, k=Math.min((rw-vp*2)/oW,(rh-vp*2)/oH);
   t.k=k;
   const bagPath=()=>{ ctx.beginPath(); ctx.rect(-oW*k/2,-oH*k/2,oW*k,oH*k); };
@@ -1372,7 +1381,7 @@ $('bagCfgBtn').onclick=()=>openBagCfg();
 $('bgcClose').onclick=closeBagCfg; $('bgcCancel').onclick=closeBagCfg;
 $('bgcSave').onclick=()=>{
   if(!bagCfg) return;
-  Object.assign(customBag,{w:bagCfg.w, h:bagCfg.h, pad:bagCfg.pad, img:bagCfg.img, src:bagCfg.src, inner:{...bagCfg.inner}});
+  Object.assign(customBag,{w:bagCfg.w, h:bagCfg.h, bagW:bagCfg.bagW, bagH:bagCfg.bagH, img:bagCfg.img, src:bagCfg.src, inner:{...bagCfg.inner}});
   saveCustom();
   closeBagCfg(); buildViews(); syncControls();   // 主页面即时同步（含尺寸设置输入框的禁用态）
 };
@@ -1381,7 +1390,8 @@ const bgcNum=(id,fn)=>$(id).addEventListener('input',e=>{ if(!bagCfg) return;
   const v=parseFloat(e.target.value); if(isNaN(v)) return; fn(v); drawBagCfg(); });
 bgcNum('bgcW',v=>bagCfg.w=Math.max(5,Math.min(200,v)));
 bgcNum('bgcH',v=>bagCfg.h=Math.max(5,Math.min(200,v)));
-bgcNum('bgcPad',v=>bagCfg.pad=Math.max(0,Math.min(20,v)));
+bgcNum('bgcBW',v=>bagCfg.bagW=Math.max(5,Math.min(400,v)));
+bgcNum('bgcBH',v=>bagCfg.bagH=Math.max(5,Math.min(400,v)));
 bgcNum('bgcIW',v=>bagCfg.inner.w=Math.max(1,Math.min(400,v)));
 bgcNum('bgcIWN',v=>bagCfg.inner.w=Math.max(1,Math.min(400,v)));
 bgcNum('bgcIX',v=>bagCfg.inner.x=v);
