@@ -351,17 +351,17 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
           <div class="f"><label>高</label><input type="number" id="bgcBH" step="0.1" min="5" max="400"></div>
         </div>
         <div class="hint">痛板居中放在包体上；包体小于痛板时按痛板尺寸显示。</div>
-        <div class="h">包体背景图（垫在痛板后方）</div>
+        <div class="h">痛板图片</div>
         <div class="drop" id="bgcDrop"><b>点击选择图片</b><br>或拖入 / 粘贴到子页面</div>
         <input type="file" id="bgcFile" accept="image/*" hidden>
-        <div class="hint" id="bgcImgInfo">未设置背景（显示深色底）</div>
+        <div class="hint" id="bgcImgInfo">未设置痛板图片（显示深色底）</div>
         <div class="btns" style="margin-top:8px">
           <button class="btn" data-bfit="cover">铺满包体</button>
           <button class="btn" data-bfit="contain">完整显示</button>
           <button class="btn" data-bfit="center">居中</button>
-          <button class="btn" id="bgcClear">移除背景</button>
+          <button class="btn" id="bgcClear">移除图片</button>
         </div>
-        <div class="h">背景调整</div>
+        <div class="h">痛板图片调整</div>
         <div class="f"><label>图片宽度 (cm)</label>
           <div class="rng"><input type="range" id="bgcIW" min="1" max="400" step="0.1"><input type="number" id="bgcIWN" step="0.1" min="1"></div>
         </div>
@@ -372,7 +372,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
         <div class="f"><label>旋转 (°)</label>
           <div class="rng"><input type="range" id="bgcIR" min="-180" max="180" step="0.5"><input type="number" id="bgcIRN" step="0.5"></div>
         </div>
-        <div class="hint">这里只设置包型本身：痛板尺寸与垫在痛板后方的背景图，与图片 / 模板的自定义相互独立。背景图铺在包体范围内、痛板之下；痛板上的图片请在主页面添加图层。</div>
+        <div class="hint">这里只设置包型本身：痛板尺寸与痛板图片，与图片 / 模板的自定义相互独立。痛板图片铺在包体范围内、痛板之下；痛板上的图片请在主页面添加图层。</div>
       </div>
       <div class="tplStage"><canvas id="bgcCv"></canvas></div>
     </div>
@@ -545,7 +545,7 @@ function drawLayer(ctx,g,k,ox,oy,L){
   if(L.kind==='shape') drawShapeLayer(ctx,g,k,ox,oy,L);
   else drawImage(ctx,g,k,ox,oy,L);
 }
-/* 自定义包型：包体背景图（包型设置子页面中调整，铺在包体范围内、痛板之下，由调用方裁剪） */
+/* 自定义包型：痛板图片（包型设置子页面中调整，铺在包体范围内、痛板之下，由调用方裁剪） */
 function drawBoardBackdrop(ctx,g,k,ox,oy){
   const cb=customBag; if(!cb.img) return;
   const w=cb.inner.w*k, h=w/imAspect(cb.img);
@@ -1363,7 +1363,7 @@ function openBagCfg(){
 }
 function closeBagCfg(){ $('bagCfgOverlay').hidden=true; bagCfg=null; }
 function syncBagCfg(){ if(!bagCfg) return; syncBagCfgLight();
-  $('bgcImgInfo').textContent=bagCfg.img?`已载入 ${bagCfg.img.naturalWidth} × ${bagCfg.img.naturalHeight} px`:'未设置背景（显示痛板底色）'; }
+  $('bgcImgInfo').textContent=bagCfg.img?`已载入 ${bagCfg.img.naturalWidth} × ${bagCfg.img.naturalHeight} px`:'未设置痛板图片（显示深色底）'; }
 function syncBagCfgLight(){
   const a=document.activeElement, t=bagCfg.inner;
   [['bgcIW',t.w],['bgcIWN',t.w],['bgcIX',t.x],['bgcIY',t.y],['bgcIR',t.rot],['bgcIRN',t.rot]]
