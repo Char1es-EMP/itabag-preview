@@ -2,6 +2,8 @@
 
 **在线使用**：<https://char1es-emp.github.io/itabag-preview/>
 
+> 界面为全新设计的浅色卡片风（Outfit 字体 / 靛蓝主色 / 图层居左布局），支持深色模式；全部功能与原版一致。
+
 本项目复刻自 <https://toys.senriakane.com/vash/>，版权归原作者所有，仅供个人离线使用。
 抓取时间：2026-09-30。
 
