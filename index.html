@@ -28,10 +28,14 @@ body.dark{
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
   font:13.5px/1.55 "Outfit","Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
-.app{display:grid;grid-template-columns:278px minmax(0,1fr) 352px;height:100vh}
-.layers{order:0;background:var(--panel);display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
+.app{display:grid;grid-template-columns:272px minmax(0,1fr) 302px;height:100vh}
+.panel{order:0;background:var(--panel);display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
 .stage{order:1;display:flex;flex-direction:column;min-width:0;min-height:0}
-.panel{order:2;background:var(--panel);display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line)}
+.right{order:2;background:var(--panel);display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line)}
+.right>.upload{padding:16px 16px 14px;border-bottom:1px solid var(--line)}
+.right>.upload .h{margin-top:0}
+.right>.upload .drop{padding:14px 12px}
+.layers{flex:1;min-height:0;background:var(--panel);display:flex;flex-direction:column}
 
 /* ── 品牌 ─────────────────────────────────────── */
 .brand{display:flex;gap:12px;align-items:center;padding:18px 18px 14px}
@@ -137,6 +141,9 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
 .tplStage canvas.drag{cursor:grabbing}
 .tplWrap>footer{display:flex;justify-content:flex-end;gap:10px;padding:13px 18px;border-top:1px solid var(--line)}
 
+/* 直角风格：全局取消圆角 */
+*{border-radius:0 !important}
+
 /* 滚动条 */
 ::-webkit-scrollbar{width:9px;height:9px}
 ::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;border:2px solid var(--panel)}
@@ -145,9 +152,9 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
 @media (max-width:1200px){.app{grid-template-columns:252px minmax(0,1fr) 330px}}
 @media (max-width:900px){
   .app{grid-template-columns:1fr;height:auto}
-  .panel{order:0;max-height:52vh;border-left:0;border-bottom:1px solid var(--line)}
+  .panel{order:0;max-height:52vh;border-right:0;border-bottom:1px solid var(--line)}
   .stage{order:1}
-  .layers{order:2;max-height:36vh;border-right:0;border-top:1px solid var(--line)}
+  .right{order:2;border-left:0;border-top:1px solid var(--line);max-height:46vh}
   .toolbar{margin:10px 12px 0}
   /* 状态提示独占固定两行：文字变化时不再改变高度，避免拖动图片时下方预览被挤动 */
   #info{flex-basis:100%;margin-left:0;display:grid;grid-template-columns:auto 1fr;gap:0 12px;
@@ -167,12 +174,6 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
       <div><h1>痛包预览模拟器</h1><p>ITA-BAG PREVIEW SIMULATOR</p></div>
     </header>
     <div class="controls">
-      <div class="h">图片</div>
-      <div class="drop" id="drop"><b>点击选择图片</b>（可多选，每张图片为一个图层）<br>或拖入 / 粘贴 (Ctrl+V) 到页面任意位置</div>
-      <input type="file" id="file" accept="image/*" hidden multiple>
-      <div class="hint" id="imgInfo">尚未载入图片</div>
-      <button class="btn" id="tplNew" style="width:100%;margin-top:2px">▦ 制作模板图形（矩形 / 圆形）</button>
-
       <div class="h">快速对齐</div>
       <div class="btns">
         <button class="btn" data-fit="board">铺满痛板</button>
@@ -264,7 +265,15 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
     <div class="tip">粉色实线为可视区，虚线为导出的痛板范围，细线为痛窗层外框；参考线不会进入导出的痛板图片。高亮虚线框为选中图层：拖四角缩放，拖上方圆柄旋转。</div>
   </main>
 
-  <aside class="layers">
+  <aside class="right">
+    <section class="upload">
+      <div class="h">图片</div>
+      <div class="drop" id="drop"><b>点击选择图片</b>（可多选，每张图片为一个图层）<br>或拖入 / 粘贴 (Ctrl+V) 到页面任意位置</div>
+      <input type="file" id="file" accept="image/*" hidden multiple>
+      <div class="hint" id="imgInfo">尚未载入图片</div>
+      <button class="btn" id="tplNew" style="width:100%;margin-top:2px">▦ 制作模板图形（矩形 / 圆形）</button>
+    </section>
+    <aside class="layers">
     <header>图层 <b id="lyCount">空</b></header>
     <div class="lyBtns">
       <button class="btn" id="lyAdd">＋ 添加</button>
@@ -278,6 +287,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
     </div>
     <ul id="lyList"></ul>
     <div class="hint" style="padding:8px 14px 12px">列表自上而下 = 自前景到背景。点击选中，👁 切换显示，双击名字重命名，拖动可排序；在画布上点击可直接选中该处最上层的图片。</div>
+    </aside>
   </aside>
 </div>
 
