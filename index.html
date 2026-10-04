@@ -140,6 +140,11 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
 .tplStage canvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none}
 .tplStage canvas.drag{cursor:grabbing}
 .tplWrap>footer{display:flex;justify-content:flex-end;gap:10px;padding:13px 18px;border-top:1px solid var(--line)}
+#frmCv{cursor:crosshair}
+.frmPrevBox{position:absolute;right:14px;bottom:14px;background:var(--panel);border:1px solid var(--line);
+  padding:6px;box-shadow:var(--shadow-sm)}
+.frmPrevBox canvas{display:block;width:220px;height:auto;background:var(--panel2)}
+.frmPrevBox span{display:block;font-size:10px;color:var(--dim);text-align:center;margin-top:4px}
 
 /* 直角风格：全局取消圆角 */
 *{border-radius:0 !important}
@@ -355,6 +360,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
         <div class="drop" id="bgcDrop"><b>点击选择图片</b><br>或拖入 / 粘贴到子页面</div>
         <input type="file" id="bgcFile" accept="image/*" hidden>
         <div class="hint" id="bgcImgInfo">未设置痛板图片（显示深色底）</div>
+        <button class="btn" id="bgcFrame" style="width:100%;margin-top:8px" disabled>⛶ 照片透视矫正（框选包体 / 痛板）</button>
         <div class="btns" style="margin-top:8px">
           <button class="btn" data-bfit="cover">铺满包体</button>
           <button class="btn" data-bfit="contain">完整显示</button>
@@ -383,6 +389,33 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
   </div>
 </div>
 
+<div class="tplOverlay" id="frameOverlay" hidden>
+  <div class="tplWrap">
+    <header>照片透视矫正 <b>框选包体与痛板</b><button class="btn" id="frmClose">✕ 关闭</button></header>
+    <div class="tplBody">
+      <div class="tplCtrls">
+        <div class="h">① 包体四边形</div>
+        <div class="hint">拖动 4 个角点对齐包体外边缘；按住四边形内部可整体移动。</div>
+        <div class="btns" style="margin-top:8px"><button class="btn" id="frmResetBag">重置包体框</button></div>
+        <div class="h">② 痛板四边形</div>
+        <div class="hint">粉色为按包体透视反推的建议位置，拖动角点微调对齐痛板边缘。</div>
+        <div class="btns" style="margin-top:8px"><button class="btn" id="frmResetBoard">重新生成建议框</button></div>
+        <div class="h">校验</div>
+        <div class="hint" id="frmCheck">—</div>
+        <button class="btn pri" id="frmApply" style="width:100%;margin-top:10px" disabled>应用矫正</button>
+        <div class="hint" style="margin-top:12px">滚轮缩放画布，拖动空白处平移。应用后回到包型设置，记得点「保存」。</div>
+      </div>
+      <div class="tplStage">
+        <canvas id="frmCv"></canvas>
+        <div class="frmPrevBox"><canvas id="frmPrev" width="220" height="165"></canvas><span>矫正预览</span></div>
+      </div>
+    </div>
+    <footer>
+      <button class="btn" id="frmCancel">取消</button>
+    </footer>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    状态
@@ -402,14 +435,14 @@ const C=(d,l)=>isLight()?l:d;
 const BAG_MODES=[{id:'vash',name:'VASH 痛窗',ready:true},{id:'custom',name:'自定义包型',ready:true}];
 if(!BAG_MODES.some(m=>m.id===S.bagMode&&m.ready)) S.bagMode='vash';
 /* 自定义包型配置（与图片/模板自定义相互独立）：痛板尺寸 + 背景图，独立持久化 */
-let customBag={w:30,h:16,bagW:36,bagH:22,src:'',img:null,inner:{x:0,y:0,w:30,rot:0}};
+let customBag={w:30,h:16,bagW:36,bagH:22,boardPos:null,src:'',img:null,inner:{x:0,y:0,w:30,rot:0}};
 try{ const s=JSON.parse(localStorage.getItem('itabagCustom.v2')||'{}');
   if(s.pad!=null&&s.bagW==null){ s.bagW=+s.w+2*+s.pad; s.bagH=+s.h+2*+s.pad; }   // 旧配置：边距换算为包体尺寸
   Object.assign(customBag, s);
 }catch(e){}
 if(typeof customBag.inner!=='object'||!customBag.inner) customBag.inner={x:0,y:0,w:30,rot:0};
 if(customBag.src){ const cim=new Image(); cim.onload=()=>{ customBag.img=cim; draw(); }; cim.src=customBag.src; }
-const saveCustom=()=>{ const c={w:customBag.w,h:customBag.h,bagW:customBag.bagW,bagH:customBag.bagH,src:customBag.src,inner:customBag.inner};
+const saveCustom=()=>{ const c={w:customBag.w,h:customBag.h,bagW:customBag.bagW,bagH:customBag.bagH,boardPos:customBag.boardPos||null,src:customBag.src,inner:customBag.inner};
   try{ localStorage.setItem('itabagCustom.v2', JSON.stringify(c)); }
   catch(e){ try{ localStorage.setItem('itabagCustom.v2', JSON.stringify({...c,src:''})); }catch(e2){} } };
 /* 图层：数组下标从小到大 = 从背景到前景；图片对象只存在内存中，不写入 localStorage */
@@ -423,10 +456,12 @@ const exportName=()=>{ const L=curLayer()||layers[layers.length-1]; return L?L.n
    ============================================================ */
 function geo(){
   if(S.bagMode==='custom'){
-    // 自定义包型：痛板居中放在包体上，包体大小可直接设定（不小于痛板）
+    // 自定义包型：痛板放在包体内（透视矫正模式下按记录位置，否则居中），包体大小可直接设定
     const w=Math.max(5,Math.min(200,+customBag.w||30)), h=Math.max(5,Math.min(200,+customBag.h||16));
     const bw=Math.max(w,Math.min(400,+customBag.bagW||w+6)), bh=Math.max(h,Math.min(400,+customBag.bagH||h+6));
-    const px=(bw-w)/2, py=(bh-h)/2, poly=[[px,py],[px+w,py],[px+w,py+h],[px,py+h]];
+    const bp=customBag.boardPos;
+    const px=Math.max(0,Math.min(bw-w, bp?+bp.x:(bw-w)/2)), py=Math.max(0,Math.min(bh-h, bp?+bp.y:(bh-h)/2));
+    const poly=[[px,py],[px+w,py],[px+w,py+h],[px,py+h]];
     return {oW:bw,oH:bh,bW:w,bH:h,bagW:bw,bagH:bh, bx:px, by:py, yTop:py, yHalf:py,
       xL:()=>px, xR:()=>px+w, slope:0, bag:{x0:0,y0:0,x1:bw},
       full:poly, halfPoly:poly, flap:poly, widthAt:()=>w};
@@ -1049,6 +1084,7 @@ $('resetDims').onclick=()=>{ Object.assign(S,DIMS); save(); syncControls(); buil
 document.querySelectorAll('[data-fit]').forEach(b=>b.onclick=()=>{ const L=curLayer(); if(L) fit(L,b.dataset.fit); });
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(b.disabled) return; S.mode=b.dataset.mode; save(); buildViews(); });
 document.addEventListener('keydown',e=>{
+  if(frm){ if(e.key==='Escape') closeFrame(); return; }   // 框选模式打开时其余快捷键失效
   if(tplEditor){ if(e.key==='Escape') closeTpl(); return; }   // 子页面打开时主页面快捷键失效
   if(bagCfg){ if(e.key==='Escape') closeBagCfg(); return; }
   const L=curLayer();
@@ -1148,8 +1184,8 @@ $('drop').onclick=()=>$('file').click();
 $('file').onchange=e=>{ addFiles(e.target.files); e.target.value=''; };
 ['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); $(tplEditor?'tplDrop':bagCfg?'bgcDrop':'drop').classList.add('over'); }));
 ['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); $('drop').classList.remove('over'); $('tplDrop').classList.remove('over'); $('bgcDrop').classList.remove('over'); }));
-document.addEventListener('drop',e=>{ (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)(e.dataTransfer.files); });
-document.addEventListener('paste',e=>{ const it=[...e.clipboardData.items].find(i=>i.type.startsWith('image/')); if(it) (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)([it.getAsFile()]); });
+document.addEventListener('drop',e=>{ if(frm) return; (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)(e.dataTransfer.files); });
+document.addEventListener('paste',e=>{ if(frm) return; const it=[...e.clipboardData.items].find(i=>i.type.startsWith('image/')); if(it) (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)([it.getAsFile()]); });
 
 /* ============================================================
    模板制作子页面（矩形 / 圆形，独立于主页面）
@@ -1359,7 +1395,7 @@ new ResizeObserver(()=>drawTpl()).observe(tplCv.parentElement);
    ============================================================ */
 let bagCfg=null;
 function openBagCfg(){
-  bagCfg={w:+customBag.w, h:+customBag.h, bagW:+customBag.bagW, bagH:+customBag.bagH, img:customBag.img, src:customBag.src, inner:{...customBag.inner}, k:1};
+  bagCfg={w:+customBag.w, h:+customBag.h, bagW:+customBag.bagW, bagH:+customBag.bagH, boardPos:customBag.boardPos||null, img:customBag.img, src:customBag.src, inner:{...customBag.inner}, k:1};
   $('bgcW').value=customBag.w; $('bgcH').value=customBag.h;
   $('bgcBW').value=customBag.bagW; $('bgcBH').value=customBag.bagH;
   $('bagCfgOverlay').hidden=false;
@@ -1367,6 +1403,7 @@ function openBagCfg(){
 }
 function closeBagCfg(){ $('bagCfgOverlay').hidden=true; bagCfg=null; }
 function syncBagCfg(){ if(!bagCfg) return; syncBagCfgLight();
+  $('bgcFrame').disabled=!bagCfg.img;
   $('bgcImgInfo').textContent=bagCfg.img?`已载入 ${bagCfg.img.naturalWidth} × ${bagCfg.img.naturalHeight} px`:'未设置痛板图片（显示深色底）'; }
 function syncBagCfgLight(){
   const a=document.activeElement, t=bagCfg.inner;
@@ -1434,11 +1471,10 @@ function drawBagCfg(){
   ctx.fillText(`痛板 ${fmt(w)} × ${fmt(h)} cm · 包体 ${fmt(oW)} × ${fmt(oH)} cm`, 0, oH*k/2+20);
   ctx.restore();
 }
-$('bagCfgBtn').onclick=()=>openBagCfg();
 $('bgcClose').onclick=closeBagCfg; $('bgcCancel').onclick=closeBagCfg;
 $('bgcSave').onclick=()=>{
   if(!bagCfg) return;
-  Object.assign(customBag,{w:bagCfg.w, h:bagCfg.h, bagW:bagCfg.bagW, bagH:bagCfg.bagH, img:bagCfg.img, src:bagCfg.src, inner:{...bagCfg.inner}});
+  Object.assign(customBag,{w:bagCfg.w, h:bagCfg.h, bagW:bagCfg.bagW, bagH:bagCfg.bagH, boardPos:bagCfg.boardPos||null, img:bagCfg.img, src:bagCfg.src, inner:{...bagCfg.inner}});
   saveCustom();
   closeBagCfg(); buildViews(); syncControls();   // 主页面即时同步（含尺寸设置输入框的禁用态）
 };
@@ -1482,6 +1518,239 @@ bgcCv.addEventListener('wheel',e=>{
   syncBagCfgLight(); drawBagCfg();
 },{passive:false});
 new ResizeObserver(()=>drawBagCfg()).observe(bgcCv.parentElement);
+
+/* ============================================================
+   照片透视矫正：框选包体 / 痛板四边形 → 单应变换拉正贴合
+   ============================================================ */
+let frm=null, lastFrame=null;   // lastFrame：保留原始照片与四边形，便于重开微调
+function solveH(src,dst){        // 4 点对应解单应矩阵（8 自由度，高斯消元）
+  const A=[],b=[];
+  for(let i=0;i<4;i++){
+    const u=src[i].x,v=src[i].y,X=dst[i].x,Y=dst[i].y;
+    A.push([u,v,1,0,0,0,-u*X,-v*X]); b.push(X);
+    A.push([0,0,0,u,v,1,-u*Y,-v*Y]); b.push(Y);
+  }
+  for(let c=0;c<8;c++){
+    let p=c; for(let r=c+1;r<8;r++) if(Math.abs(A[r][c])>Math.abs(A[p][c])) p=r;
+    [A[c],A[p]]=[A[p],A[c]]; [b[c],b[p]]=[b[p],b[c]];
+    const pv=A[c][c]; if(Math.abs(pv)<1e-12) return null;
+    for(let r=c+1;r<8;r++){ const f=A[r][c]/pv; for(let k=c;k<8;k++) A[r][k]-=f*A[c][k]; b[r]-=f*b[c]; }
+  }
+  const h=new Array(8);
+  for(let r=7;r>=0;r--){ let s=b[r]; for(let k=r+1;k<8;k++) s-=A[r][k]*h[k]; h[r]=s/A[r][r]; }
+  return h;
+}
+function applyH(h,x,y){ const w=h[6]*x+h[7]*y+1; return [(h[0]*x+h[1]*y+h[2])/w,(h[3]*x+h[4]*y+h[5])/w]; }
+function drawTriangle(ctx,img,x0,y0,x1,y1,x2,y2,u0,v0,u1,v1,u2,v2){   // 源三角 (u,v) → 目标三角 (x,y)
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.lineTo(x2,y2); ctx.closePath(); ctx.clip();
+  const denom=u0*(v2-v1)-u1*v2+u2*v1+(u1-u2)*v0;
+  if(Math.abs(denom)<1e-12){ ctx.restore(); return; }
+  const m11=-(v0*(x2-x1)-v1*x2+v2*x1+(v1-v2)*x0)/denom;
+  const m12=(v1*y2+v0*(y1-y2)-v2*y1+(v2-v1)*y0)/denom;
+  const m21=(u0*(x2-x1)-u1*x2+u2*x1+(u1-u2)*x0)/denom;
+  const m22=-(u1*y2+u0*(y1-y2)-u2*y1+(u2-u1)*y0)/denom;
+  const dx=(u0*(v2*x1-v1*x2)+v0*(u1*x2-u2*x1)+(u2*v1-u1*v2)*x0)/denom;
+  const dy=(u0*(v2*y1-v1*y2)+v0*(u1*y2-u2*y1)+(u2*v1-u1*v2)*y0)/denom;
+  ctx.transform(m11,m12,m21,m22,dx,dy);
+  ctx.drawImage(img,0,0);
+  ctx.restore();
+}
+function warpTo(ctx,img,srcQuad,dstRect,strips){   // srcQuad → dstRect([x,y,w,h])，分条仿射
+  const [dx,dy,dw,dh]=dstRect;
+  const dst=[{x:dx,y:dy},{x:dx+dw,y:dy},{x:dx+dw,y:dy+dh},{x:dx,y:dy+dh}];
+  const Hinv=solveH(dst,srcQuad);
+  if(!Hinv) return;
+  const P=(x,y)=>applyH(Hinv,x,y);
+  for(let i=0;i<strips;i++){
+    const xa=dx+dw*i/strips, xb=dx+dw*(i+1)/strips+(i<strips-1?0.7:0);   // 重叠 0.7px 防缝
+    const a0=P(xa,dy), a1=P(xb,dy), b0=P(xa,dy+dh), b1=P(xb,dy+dh);
+    drawTriangle(ctx,img, xa,dy, xb,dy, xb,dy+dh, a0[0],a0[1], a1[0],a1[1], b1[0],b1[1]);
+    drawTriangle(ctx,img, xa,dy, xb,dy+dh, xa,dy+dh, a0[0],a0[1], b1[0],b1[1], b0[0],b0[1]);
+  }
+}
+function quadConvex(q){ let s=0;
+  for(let i=0;i<4;i++){ const a=q[i],b=q[(i+1)%4],c=q[(i+2)%4];
+    const cr=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);
+    if(Math.abs(cr)<1e-6) return false; const sg=cr>0?1:-1;
+    if(!s) s=sg; else if(sg!==s) return false; }
+  return true;
+}
+function ptInQuad(q,p){ let s=0;
+  for(let i=0;i<4;i++){ const a=q[i],b=q[(i+1)%4];
+    const cr=(b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x);
+    const sg=cr>0?1:-1; if(!s) s=sg; else if(sg!==s) return false; }
+  return true;
+}
+function quadArea(q){ let a=0;
+  for(let i=0;i<4;i++){ const p=q[i],n=q[(i+1)%4]; a+=p.x*n.y-n.x*p.y; }
+  return Math.abs(a)/2;
+}
+function openFrame(){
+  if(!bagCfg||!bagCfg.img) return;
+  const src=(lastFrame&&lastFrame.img&&lastFrame.img.naturalWidth)?lastFrame:{img:bagCfg.img};
+  const iw=src.img.naturalWidth, ih=src.img.naturalHeight;
+  const ins=Math.round(Math.min(iw,ih)*0.04);
+  frm={img:src.img, iw, ih,
+    bag: src.bag?src.bag.map(p=>({...p})):[{x:ins,y:ins},{x:iw-ins,y:ins},{x:iw-ins,y:ih-ins},{x:ins,y:ih-ins}],
+    board:null, view:null, drag:null};
+  if(src.board) frm.board=src.board.map(p=>({...p})); else suggestBoard();
+  $('frameOverlay').hidden=false;
+  fitFrameView(); updateFrmCheck(); drawFrame(); renderFrmPrev();
+}
+function closeFrame(){ $('frameOverlay').hidden=true; frm=null; }
+function fitFrameView(){
+  const box=$('frmCv').parentElement.getBoundingClientRect();
+  const s=Math.min(box.width/frm.iw, box.height/frm.ih)*0.92;
+  frm.view={s, tx:(box.width-frm.iw*s)/2, ty:(box.height-frm.ih*s)/2};
+}
+function suggestBoard(){   // 用包体单应的逆变换，把画布痛板矩形反推回照片上的建议框
+  const k=10, W=(+bagCfg.bagW||40)*k, Hh=(+bagCfg.bagH||30)*k, w=(+bagCfg.w||25)*k, h=(+bagCfg.h||18)*k;
+  const rect=[{x:0,y:0},{x:W,y:0},{x:W,y:Hh},{x:0,y:Hh}];
+  const Hi=solveH(rect, frm.bag);
+  if(!Hi){ const i2=Math.round(frm.iw*0.2), i3=Math.round(frm.ih*0.2);
+    frm.board=[{x:i2,y:i3},{x:frm.iw-i2,y:i3},{x:frm.iw-i2,y:frm.ih-i3},{x:i2,y:frm.ih-i3}]; return; }
+  const bx=(W-w)/2, by=(Hh-h)/2;
+  frm.board=[{x:bx,y:by},{x:bx+w,y:by},{x:bx+w,y:by+h},{x:bx,y:by+h}]
+    .map(p=>{ const q=applyH(Hi,p.x,p.y); return {x:q[0],y:q[1]}; });
+}
+function drawQuadPath(ctx,q,color,dashed,lw){
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=lw; if(dashed) ctx.setLineDash([10,7]);
+  ctx.beginPath(); q.forEach((p,i)=>ctx[i?'lineTo':'moveTo'](p.x,p.y)); ctx.closePath(); ctx.stroke();
+  ctx.restore();
+}
+function drawFrame(){
+  if(!frm||$('frameOverlay').hidden) return;
+  const cv=$('frmCv'), dpr=window.devicePixelRatio||1;
+  const box=cv.parentElement.getBoundingClientRect(), rw=box.width, rh=box.height;
+  if(!rw||!rh) return;
+  cv.width=Math.round(rw*dpr); cv.height=Math.round(rh*dpr);
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,rw,rh);
+  const v=frm.view;
+  ctx.save(); ctx.translate(v.tx,v.ty); ctx.scale(v.s,v.s);
+  ctx.drawImage(frm.img,0,0);
+  drawQuadPath(ctx,frm.bag,'rgba(87,84,232,.95)',false,2/v.s);
+  drawQuadPath(ctx,frm.board,'rgba(255,77,141,.95)',true,2/v.s);
+  const hs=6/v.s;
+  for(const [q,col] of [[frm.bag,'rgba(87,84,232,.95)'],[frm.board,'rgba(255,77,141,.95)']])
+    for(const p of q){ ctx.fillStyle='#fff'; ctx.fillRect(p.x-hs,p.y-hs,hs*2,hs*2);
+      ctx.strokeStyle=col; ctx.lineWidth=1.5/v.s; ctx.strokeRect(p.x-hs,p.y-hs,hs*2,hs*2); }
+  ctx.restore();
+}
+function updateFrmCheck(){
+  if(!frm) return;
+  const msgs=[]; let ok=true;
+  if(!quadConvex(frm.bag)){ msgs.push('✗ 包体四边形无效（非凸）'); ok=false; }
+  if(!quadConvex(frm.board)){ msgs.push('✗ 痛板四边形无效（非凸）'); ok=false; }
+  if(ok && !frm.board.every(p=>ptInQuad(frm.bag,p))){ msgs.push('✗ 痛板超出包体范围'); ok=false; }
+  if(ok && quadArea(frm.board)<100){ msgs.push('✗ 痛板四边形太小'); ok=false; }
+  const el=$('frmCheck');
+  el.textContent = ok ? '✓ 校验通过，可应用矫正' : msgs.join('；');
+  el.style.color = ok ? 'var(--accent)' : 'var(--bad)';
+  $('frmApply').disabled = !ok;
+}
+let frmPrevRaf=0;
+function scheduleFrmPrev(){ cancelAnimationFrame(frmPrevRaf); frmPrevRaf=requestAnimationFrame(renderFrmPrev); }
+function renderFrmPrev(){   // 实时矫正预览（低清）+ 痛板落位叠加
+  if(!frm||!frm.img) return;
+  const cv=$('frmPrev');
+  const W=220, Hh=Math.max(20,Math.round(220*(+bagCfg.bagH||30)/(+bagCfg.bagW||40)));
+  cv.width=W; cv.height=Hh;
+  const ctx=cv.getContext('2d');
+  warpTo(ctx, frm.img, frm.bag, [0,0,W,Hh], 24);
+  const H=solveH(frm.bag, [{x:0,y:0},{x:W,y:0},{x:W,y:Hh},{x:0,y:Hh}]);
+  if(H){ ctx.save(); ctx.strokeStyle='rgba(255,77,141,.9)'; ctx.lineWidth=2; ctx.setLineDash([5,4]);
+    ctx.beginPath(); frm.board.forEach((p,i)=>{ const q=applyH(H,p.x,p.y); ctx[i?'lineTo':'moveTo'](q[0],q[1]); });
+    ctx.closePath(); ctx.stroke(); ctx.restore(); }
+}
+function applyFrame(){
+  if(!frm||!frm.img) return;
+  const d=Math.min(20, 2000/Math.max(+bagCfg.bagW||40,+bagCfg.bagH||30));
+  const W=Math.max(50,Math.round((+bagCfg.bagW||40)*d)), Hh=Math.max(50,Math.round((+bagCfg.bagH||30)*d));
+  const out=document.createElement('canvas'); out.width=W; out.height=Hh;
+  const octx=out.getContext('2d');
+  octx.fillStyle=C('#2A2E33','#e6eaed'); octx.fillRect(0,0,W,Hh);
+  warpTo(octx, frm.img, frm.bag, [0,0,W,Hh], 64);
+  // 痛板落位：包体单应映射后取包围盒中心，作为痛板在包体内的位置（cm）
+  const H=solveH(frm.bag, [{x:0,y:0},{x:W,y:0},{x:W,y:Hh},{x:0,y:Hh}]);
+  let boardPos=null;
+  if(H){
+    const qs=frm.board.map(p=>applyH(H,p.x,p.y));
+    const xs=qs.map(q=>q[0]), ys=qs.map(q=>q[1]);
+    const w=+bagCfg.w||25, h=+bagCfg.h||18, bw=+bagCfg.bagW||40, bh=+bagCfg.bagH||30;
+    const px=Math.max(0,Math.min(bw-w,(Math.min(...xs)+Math.max(...xs))/2/d - w/2));
+    const py=Math.max(0,Math.min(bh-h,(Math.min(...ys)+Math.max(...ys))/2/d - h/2));
+    boardPos={x:+px.toFixed(2), y:+py.toFixed(2)};
+  }
+  const url=out.toDataURL('image/jpeg',0.92);
+  const im=new Image();
+  im.onload=()=>{ syncBagCfg(); drawBagCfg(); };
+  im.src=url;
+  bagCfg.img=im; bagCfg.src=url;
+  bagCfg.inner={x:0,y:0,w:+bagCfg.bagW,rot:0};   // 矫正图与包体精确对应，重置为铺满
+  bagCfg.boardPos=boardPos;
+  lastFrame={img:frm.img, bag:frm.bag.map(p=>({...p})), board:frm.board.map(p=>({...p}))};
+  closeFrame();
+}
+/* 框选编辑器交互 */
+$('bgcFrame').onclick=()=>openFrame();
+$('frmClose').onclick=closeFrame; $('frmCancel').onclick=closeFrame;
+$('frmApply').onclick=applyFrame;
+$('frmResetBag').onclick=()=>{ if(!frm) return;
+  const ins=Math.round(Math.min(frm.iw,frm.ih)*0.04);
+  frm.bag=[{x:ins,y:ins},{x:frm.iw-ins,y:ins},{x:frm.iw-ins,y:frm.ih-ins},{x:ins,y:frm.ih-ins}];
+  updateFrmCheck(); drawFrame(); scheduleFrmPrev(); };
+$('frmResetBoard').onclick=()=>{ if(!frm) return; suggestBoard(); updateFrmCheck(); drawFrame(); scheduleFrmPrev(); };
+const frmCv=$('frmCv'); let frmDrag=null;
+frmCv.addEventListener('pointerdown',e=>{
+  if(!frm) return;
+  const r=frmCv.getBoundingClientRect();
+  const p={x:(e.clientX-r.left-frm.view.tx)/frm.view.s, y:(e.clientY-r.top-frm.view.ty)/frm.view.s};
+  const hr=13/frm.view.s;
+  let hit=null;
+  for(const [qn,q] of [['board',frm.board],['bag',frm.bag]])
+    for(let i=0;i<4;i++) if(Math.hypot(p.x-q[i].x,p.y-q[i].y)<hr){ hit={type:'corner',qn,i}; break; }
+  if(hit) frm.drag=hit;
+  else if(ptInQuad(frm.board,p)) frm.drag={type:'move',qn:'board',p0:p,orig:frm.board.map(o=>({...o}))};
+  else if(ptInQuad(frm.bag,p)) frm.drag={type:'move',qn:'bag',p0:p,orig:frm.bag.map(o=>({...o}))};
+  else frm.drag={type:'pan',sx:e.clientX,sy:e.clientY,tx:frm.view.tx,ty:frm.view.ty};
+  try{ frmCv.setPointerCapture(e.pointerId); }catch(_){}
+  frmCv.classList.add('drag');
+});
+frmCv.addEventListener('pointermove',e=>{
+  if(!frm) return;
+  const r=frmCv.getBoundingClientRect();
+  const p={x:(e.clientX-r.left-frm.view.tx)/frm.view.s, y:(e.clientY-r.top-frm.view.ty)/frm.view.s};
+  const d=frm.drag;
+  if(!d){   // 悬停光标
+    const hr=13/frm.view.s;
+    const onHandle=[...frm.board,...frm.bag].some(q=>Math.hypot(p.x-q.x,p.y-q.y)<hr);
+    const inQuad=ptInQuad(frm.bag,p)||ptInQuad(frm.board,p);
+    frmCv.style.cursor=onHandle?'grab':(inQuad?'move':'crosshair');
+    return;
+  }
+  if(d.type==='corner'){
+    const q=frm[d.qn];
+    q[d.i]={x:Math.max(0,Math.min(frm.iw,p.x)), y:Math.max(0,Math.min(frm.ih,p.y))};
+  } else if(d.type==='move'){
+    const dx=p.x-d.p0.x, dy=p.y-d.p0.y;
+    frm[d.qn]=d.orig.map(o=>({x:o.x+dx,y:o.y+dy}));
+  } else {
+    frm.view.tx=d.tx+(e.clientX-d.sx); frm.view.ty=d.ty+(e.clientY-d.sy);
+  }
+  drawFrame(); scheduleFrmPrev();
+});
+const frmEnd=()=>{ if(frm){ frm.drag=null; updateFrmCheck(); } frmCv.classList.remove('drag'); };
+frmCv.addEventListener('pointerup',frmEnd); frmCv.addEventListener('pointercancel',frmEnd);
+frmCv.addEventListener('wheel',e=>{
+  if(!frm) return; e.preventDefault();
+  const r=frmCv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top, v=frm.view;
+  const ns=Math.max(0.05,Math.min(16, v.s*Math.exp(-e.deltaY*0.0012))), rf=ns/v.s;
+  v.tx=mx-(mx-v.tx)*rf; v.ty=my-(my-v.ty)*rf; v.s=ns;
+  drawFrame();
+},{passive:false});
+new ResizeObserver(()=>drawFrame()).observe(frmCv.parentElement);
+$('bagCfgBtn').onclick=()=>openBagCfg();
 
 /* ============================================================
    导出
