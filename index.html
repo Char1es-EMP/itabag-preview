@@ -355,7 +355,8 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
           <div class="f"><label>宽</label><input type="number" id="bgcBW" step="0.1" min="5" max="400"></div>
           <div class="f"><label>高</label><input type="number" id="bgcBH" step="0.1" min="5" max="400"></div>
         </div>
-        <div class="hint">痛板居中放在包体上；包体小于痛板时按痛板尺寸显示。</div>
+        <div class="hint">痛板默认居中，也可在右侧预览中直接拖动痛板调整位置（保存后主页面同步）。包体小于痛板时按痛板尺寸显示。</div>
+        <div class="btns" style="margin-top:8px"><button class="btn" id="bgcCenterBoard">痛板居中</button></div>
         <div class="h">痛包背景图（垫在痛板后方）</div>
         <div class="drop" id="bgcDrop"><b>点击选择图片</b><br>或拖入 / 粘贴到子页面</div>
         <input type="file" id="bgcFile" accept="image/*" hidden>
@@ -378,7 +379,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
         <div class="f"><label>旋转 (°)</label>
           <div class="rng"><input type="range" id="bgcIR" min="-180" max="180" step="0.5"><input type="number" id="bgcIRN" step="0.5"></div>
         </div>
-        <div class="hint">这里只设置包型本身：痛板尺寸与痛包背景图，与图片 / 模板的自定义相互独立。痛包背景图垫在痛板后方、铺在包体范围内；痛板上的图片（痛板图片）请在主页面右侧上传后作为图层添加。</div>
+        <div class="hint">这里只设置包型本身：痛板尺寸与痛包背景图，与图片 / 模板的自定义相互独立。痛包背景图垫在痛板后方、铺在包体范围内；痛板上的图片（痛板图片）请在主页面右侧上传后作为图层添加。主页面中痛板位置固定不可移动。</div>
       </div>
       <div class="tplStage"><canvas id="bgcCv"></canvas></div>
     </div>
@@ -1480,6 +1481,7 @@ $('bgcSave').onclick=()=>{
   closeBagCfg(); buildViews(); syncControls();   // 主页面即时同步（含尺寸设置输入框的禁用态）
 };
 $('bgcClear').onclick=()=>{ if(!bagCfg) return; bagCfg.img=null; bagCfg.src=''; lastFrame=null; bagCfg.boardPos=null; syncBagCfg(); drawBagCfg(); };
+$('bgcCenterBoard').onclick=()=>{ if(!bagCfg) return; bagCfg.boardPos=null; drawBagCfg(); };   // 痛板恢复居中
 const bgcNum=(id,fn)=>$(id).addEventListener('input',e=>{ if(!bagCfg) return;
   const v=parseFloat(e.target.value); if(isNaN(v)) return; fn(v); drawBagCfg(); });
 bgcNum('bgcW',v=>bagCfg.w=Math.max(5,Math.min(200,v)));
@@ -1495,21 +1497,45 @@ bgcNum('bgcIRN',v=>bagCfg.inner.rot=Math.max(-180,Math.min(180,v)));
 document.querySelectorAll('[data-bfit]').forEach(b=>b.onclick=()=>{ if(bagCfg) fitBagBg(b.dataset.bfit); });
 $('bgcDrop').onclick=()=>$('bgcFile').click();
 $('bgcFile').onchange=e=>{ bagCfgAddFiles(e.target.files); e.target.value=''; };
-// 子页面预览交互：拖动移动背景，滚轮缩放
+// 子页面预览交互：拖动痛板调整位置、拖动背景移动、滚轮缩放背景
 const bgcCv=$('bgcCv'); let bgcGest=null;
+function bgcGeom(rw,rh){   // 预览几何：痛板中心像素位置与尺寸
+  const w=Math.max(5,+bagCfg.w||30), h=Math.max(5,+bagCfg.h||16);
+  const bw=Math.max(w,+bagCfg.bagW||w+6), bh=Math.max(h,+bagCfg.bagH||h+6);
+  const bp=bagCfg.boardPos||{x:(bw-w)/2, y:(bh-h)/2};
+  const k=bagCfg.k||1;
+  return {w,h,bw,bh,bp,k, cx:rw/2+(bp.x+w/2-bw/2)*k, cy:rh/2+(bp.y+h/2-bh/2)*k};
+}
 bgcCv.addEventListener('pointerdown',e=>{
-  if(!bagCfg||!bagCfg.img) return;
+  if(!bagCfg) return;
   const r=bgcCv.getBoundingClientRect(), p=[e.clientX-r.left, e.clientY-r.top];
-  bgcGest={p0:p, x0:bagCfg.inner.x, y0:bagCfg.inner.y, k:bagCfg.k};
+  const gm=bgcGeom(r.width,r.height);
+  const inBoard=Math.abs(p[0]-gm.cx)<=gm.w*gm.k/2 && Math.abs(p[1]-gm.cy)<=gm.h*gm.k/2;
+  if(inBoard) bgcGest={type:'board', p0:p, x0:gm.bp.x, y0:gm.bp.y, k:gm.k, w:gm.w, h:gm.h, bw:gm.bw, bh:gm.bh};
+  else if(bagCfg.img) bgcGest={type:'bg', p0:p, x0:bagCfg.inner.x, y0:bagCfg.inner.y, k:bagCfg.k};
+  else return;
   try{ bgcCv.setPointerCapture(e.pointerId); }catch(_){}
   bgcCv.classList.add('drag');
 });
 bgcCv.addEventListener('pointermove',e=>{
-  if(!bgcGest) return;
+  if(!bagCfg) return;
   const r=bgcCv.getBoundingClientRect(), p=[e.clientX-r.left, e.clientY-r.top];
-  bagCfg.inner.x=+(bgcGest.x0+(p[0]-bgcGest.p0[0])/bgcGest.k).toFixed(3);
-  bagCfg.inner.y=+(bgcGest.y0+(p[1]-bgcGest.p0[1])/bgcGest.k).toFixed(3);
-  syncBagCfgLight(); drawBagCfg();
+  if(!bgcGest){   // 悬停光标：痛板可拖 / 背景可拖
+    const gm=bgcGeom(r.width,r.height);
+    const inBoard=Math.abs(p[0]-gm.cx)<=gm.w*gm.k/2 && Math.abs(p[1]-gm.cy)<=gm.h*gm.k/2;
+    bgcCv.style.cursor=inBoard?'move':(bagCfg.img?'grab':'crosshair');
+    return;
+  }
+  if(bgcGest.type==='board'){
+    const dx=(p[0]-bgcGest.p0[0])/bgcGest.k, dy=(p[1]-bgcGest.p0[1])/bgcGest.k;
+    bagCfg.boardPos={ x:+Math.max(0,Math.min(bgcGest.bw-bgcGest.w, bgcGest.x0+dx)).toFixed(2),
+                      y:+Math.max(0,Math.min(bgcGest.bh-bgcGest.h, bgcGest.y0+dy)).toFixed(2) };
+  } else {
+    bagCfg.inner.x=+(bgcGest.x0+(p[0]-bgcGest.p0[0])/bgcGest.k).toFixed(3);
+    bagCfg.inner.y=+(bgcGest.y0+(p[1]-bgcGest.p0[1])/bgcGest.k).toFixed(3);
+    syncBagCfgLight();
+  }
+  drawBagCfg();
 });
 const bgcEnd=()=>{ bgcGest=null; bgcCv.classList.remove('drag'); };
 bgcCv.addEventListener('pointerup',bgcEnd); bgcCv.addEventListener('pointercancel',bgcEnd);
