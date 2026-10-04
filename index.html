@@ -1452,8 +1452,10 @@ function drawBagCfg(){
   const oW=Math.max(w,+t.bagW||w+6), oH=Math.max(h,+t.bagH||h+6);
   const vp=46, k=Math.min((rw-vp*2)/oW,(rh-vp*2)/oH);
   t.k=k;
+  const bp=t.boardPos||{x:(oW-w)/2, y:(oH-h)/2};
+  const bcx=(bp.x+w/2-oW/2)*k, bcy=(bp.y+h/2-oH/2)*k;   // 痛板中心相对包体中心的像素偏移
   const bagPath=()=>{ ctx.beginPath(); ctx.rect(-oW*k/2,-oH*k/2,oW*k,oH*k); };
-  const boardPath=()=>{ ctx.beginPath(); ctx.rect(-w*k/2,-h*k/2,w*k,h*k); };
+  const boardPath=()=>{ ctx.beginPath(); ctx.rect(bcx-w*k/2, bcy-h*k/2, w*k, h*k); };
   ctx.save(); ctx.translate(rw/2,rh/2);
   bagPath(); ctx.fillStyle=C('#2A2E33','#e6eaed'); ctx.fill();   // 包体底色
   ctx.save(); bagPath(); ctx.clip();
