@@ -279,7 +279,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
       <div class="h">图片</div>
       <div class="drop" id="drop"><b>点击选择痛板图片</b>（可多选，每张图片为一个图层，排在痛板上）<br>或拖入 / 粘贴 (Ctrl+V) 到页面任意位置</div>
       <input type="file" id="file" accept="image/*" hidden multiple>
-      <div class="hint" id="imgInfo">尚未载入图片</div>
+      <div class="hint" id="imgInfo">添加周边</div>
       <button class="btn" id="tplNew" style="width:100%;margin-top:2px">▦ 制作模板图形（矩形 / 圆形）</button>
     </section>
     <aside class="layers">
@@ -349,6 +349,14 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
     <header>自定义包型 <b>痛板与包体背景</b><button class="btn" id="bgcClose">✕ 关闭</button></header>
     <div class="tplBody">
       <div class="tplCtrls">
+        <div class="h">包型库</div>
+        <div class="f"><select id="bgcStore"></select></div>
+        <div class="f" style="margin-top:8px"><input type="text" id="bgcName" placeholder="包型名称（储存时使用）"></div>
+        <div class="btns" style="margin-top:8px">
+          <button class="btn" id="bgcStoreSave">储存包型</button>
+          <button class="btn" id="bgcStoreDel">删除包型</button>
+          <button class="btn" id="bgcCompare">对比包型</button>
+        </div>
         <div class="h">痛板尺寸 (cm)</div>
         <div class="grid2">
           <div class="f"><label>宽</label><input type="number" id="bgcW" step="0.1" min="5" max="200"></div>
@@ -391,6 +399,21 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
       <button class="btn" id="bgcCancel">取消</button>
       <button class="btn pri" id="bgcSave">保存</button>
     </footer>
+  </div>
+</div>
+
+<div class="tplOverlay" id="cmpOverlay" hidden>
+  <div class="tplWrap">
+    <header>包型对比 <b>勾选多个包型并排查看</b><button class="btn" id="cmpClose">✕ 关闭</button></header>
+    <div class="tplBody" style="grid-template-columns:220px 1fr">
+      <div class="tplCtrls">
+        <div class="h">选择包型</div>
+        <div id="cmpList"></div>
+        <div class="hint" style="margin-top:12px">勾选多个包型进行并排对比（仅包型外观，不含痛板图层内容）。</div>
+      </div>
+      <div class="tplStage" id="cmpStage" style="overflow:auto;display:flex;flex-wrap:wrap;align-items:flex-start;gap:18px;padding:20px"></div>
+    </div>
+    <footer><button class="btn" id="cmpClose2">关闭</button></footer>
   </div>
 </div>
 
@@ -803,6 +826,8 @@ function buildViews(){
   });
   document.querySelectorAll('#modeSeg button').forEach(b=>{ b.classList.toggle('on',!customMode&&b.dataset.mode===S.mode); b.disabled=customMode; });
   document.querySelectorAll('#viewSeg button').forEach(b=>{ b.classList.toggle('on',!customMode&&b.dataset.view===S.view); b.disabled=customMode; });
+  $('modeSeg').style.display=customMode?'none':'';   // 自定义包型无展开/遮挡概念，隐藏
+  $('viewSeg').style.display=customMode?'none':'';
   draw();
 }
 /* 选中图层的外框与手柄（仅交互预览用，不进入任何导出）。
@@ -1090,6 +1115,7 @@ document.querySelectorAll('[data-fit]').forEach(b=>b.onclick=()=>{ const L=curLa
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{ if(b.disabled) return; S.mode=b.dataset.mode; save(); buildViews(); });
 document.addEventListener('keydown',e=>{
   if(frm){ if(e.key==='Escape') closeFrame(); return; }   // 框选模式打开时其余快捷键失效
+  if(!$('cmpOverlay').hidden){ if(e.key==='Escape') $('cmpOverlay').hidden=true; return; }
   if(tplEditor){ if(e.key==='Escape') closeTpl(); return; }   // 子页面打开时主页面快捷键失效
   if(bagCfg){ if(e.key==='Escape') closeBagCfg(); return; }
   const L=curLayer();
@@ -1164,7 +1190,7 @@ function syncLayerRows(){
     li.querySelector('.nm small').textContent=L.kind==='shape'?tplMeta(L):rowMeta(L);
   });
   $('lyCount').textContent=layers.length?`${layers.length} 张`:'空';
-  $('imgInfo').textContent=layers.length?`共 ${layers.length} 个图层 · 选中：${curLayer()?curLayer().name:'无'}`:'尚未载入图片';
+  $('imgInfo').textContent=layers.length?`共 ${layers.length} 个图层 · 选中：${curLayer()?curLayer().name:'无'}`:'添加周边';
 }
 const moveSel=dir=>{ const L=curLayer(); if(!L) return;
   const i=layers.indexOf(L); layers.splice(i,1);
@@ -1190,7 +1216,7 @@ $('file').onchange=e=>{ addFiles(e.target.files); e.target.value=''; };
 ['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); $(tplEditor?'tplDrop':bagCfg?'bgcDrop':'drop').classList.add('over'); }));
 ['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); $('drop').classList.remove('over'); $('tplDrop').classList.remove('over'); $('bgcDrop').classList.remove('over'); }));
 document.addEventListener('drop',e=>{ if(frm) return; (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)(e.dataTransfer.files); });
-document.addEventListener('paste',e=>{ if(frm) return; const it=[...e.clipboardData.items].find(i=>i.type.startsWith('image/')); if(it) (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)([it.getAsFile()]); });
+document.addEventListener('paste',e=>{ if(frm||!$('cmpOverlay').hidden) return; const it=[...e.clipboardData.items].find(i=>i.type.startsWith('image/')); if(it) (tplEditor?tplAddFiles:bagCfg?bagCfgAddFiles:addFiles)([it.getAsFile()]); });
 
 /* ============================================================
    模板制作子页面（矩形 / 圆形，独立于主页面）
@@ -1400,9 +1426,10 @@ new ResizeObserver(()=>drawTpl()).observe(tplCv.parentElement);
    ============================================================ */
 let bagCfg=null;
 function openBagCfg(){
-  bagCfg={w:+customBag.w, h:+customBag.h, bagW:+customBag.bagW, bagH:+customBag.bagH, boardPos:customBag.boardPos||null, img:customBag.img, src:customBag.src, inner:{...customBag.inner}, k:1};
+  bagCfg={w:+customBag.w, h:+customBag.h, bagW:+customBag.bagW, bagH:+customBag.bagH, boardPos:customBag.boardPos||null, storeId:customBag.storeId||null, img:customBag.img, src:customBag.src, inner:{...customBag.inner}, k:1};
   $('bgcW').value=customBag.w; $('bgcH').value=customBag.h;
   $('bgcBW').value=customBag.bagW; $('bgcBH').value=customBag.bagH;
+  refreshStoreSelect();
   $('bagCfgOverlay').hidden=false;
   syncBagCfg(); drawBagCfg();
 }
@@ -1551,6 +1578,144 @@ bgcCv.addEventListener('wheel',e=>{
   syncBagCfgLight(); drawBagCfg();
 },{passive:false});
 new ResizeObserver(()=>drawBagCfg()).observe(bgcCv.parentElement);
+
+/* ============================================================
+   包型库：多个自定义包型的储存 / 下拉选择 / 并排对比
+   ============================================================ */
+let bagStore=[];
+try{ const s=JSON.parse(localStorage.getItem('itabagBagStore.v1')||'[]'); if(Array.isArray(s)) bagStore=s; }catch(e){}
+function saveStore(){   // 超限时从最旧包型开始放弃图片数据（保留尺寸配置）
+  const pack=()=>JSON.stringify(bagStore.map(s=>({id:s.id,name:s.name,cfg:s.cfg})));
+  try{ localStorage.setItem('itabagBagStore.v1', pack()); return; }catch(e){}
+  for(let i=0;i<bagStore.length;i++){ bagStore[i].cfg.src='';
+    try{ localStorage.setItem('itabagBagStore.v1', pack()); return; }catch(e){} }
+}
+function refreshStoreSelect(){
+  const sel=$('bgcStore'), cur=bagCfg?bagCfg.storeId:null;
+  sel.innerHTML='<option value="">当前配置（未存储）</option>'+
+    bagStore.map(s=>`<option value="${s.id}"${s.id===cur?' selected':''}>${esc(s.name)}</option>`).join('');
+  $('bgcStoreDel').disabled=!cur;
+}
+function applyBagCfgToMain(){   // 编辑器 → 主页面同步
+  Object.assign(customBag,{ w:bagCfg.w, h:bagCfg.h, bagW:bagCfg.bagW, bagH:bagCfg.bagH,
+    boardPos:bagCfg.boardPos||null, storeId:bagCfg.storeId||null,
+    img:bagCfg.img||null, src:bagCfg.src||'', inner:{...bagCfg.inner} });
+  saveCustom(); buildViews(); syncControls();
+}
+function loadStorePreset(s){   // 下拉选择：载入包型并同步主页面
+  if(!bagCfg) return;
+  Object.assign(bagCfg,{ w:+s.cfg.w||30, h:+s.cfg.h||18, bagW:+s.cfg.bagW||36, bagH:+s.cfg.bagH||22,
+    boardPos:s.cfg.boardPos?{...s.cfg.boardPos}:null, storeId:s.id, src:s.cfg.src||'', img:null,
+    inner:{...(s.cfg.inner||{x:0,y:0,w:+s.cfg.w||30,rot:0})} });
+  $('bgcW').value=bagCfg.w; $('bgcH').value=bagCfg.h; $('bgcBW').value=bagCfg.bagW; $('bgcBH').value=bagCfg.bagH;
+  applyBagCfgToMain();
+  if(bagCfg.src){ const im=new Image();
+    im.onload=()=>{ if(bagCfg&&bagCfg.storeId===s.id){ bagCfg.img=im; customBag.img=im; saveCustom(); syncBagCfg(); drawBagCfg(); draw(); } };
+    im.src=bagCfg.src;
+  }
+  syncBagCfg(); drawBagCfg();
+}
+$('bgcStore').onchange=e=>{
+  if(!bagCfg) return;
+  const id=e.target.value;
+  if(!id){   // 当前配置：从 customBag 重新载入编辑器
+    bagCfg.storeId=null;
+    Object.assign(bagCfg,{ w:+customBag.w, h:+customBag.h, bagW:+customBag.bagW, bagH:+customBag.bagH,
+      boardPos:customBag.boardPos?{...customBag.boardPos}:null, img:customBag.img, src:customBag.src||'',
+      inner:{...customBag.inner} });
+    $('bgcW').value=bagCfg.w; $('bgcH').value=bagCfg.h; $('bgcBW').value=bagCfg.bagW; $('bgcBH').value=bagCfg.bagH;
+    syncBagCfg(); drawBagCfg(); return;
+  }
+  const s=bagStore.find(x=>x.id===id); if(s) loadStorePreset(s);
+};
+$('bgcStoreSave').onclick=()=>{
+  if(!bagCfg) return;
+  const ex=bagStore.find(x=>x.id===bagCfg.storeId);
+  const name=($('bgcName').value.trim()) || (ex?ex.name:`包型 ${bagStore.length+1}`);
+  if(!name) return;
+  const cfg={ w:bagCfg.w, h:bagCfg.h, bagW:bagCfg.bagW, bagH:bagCfg.bagH,
+    boardPos:bagCfg.boardPos?{...bagCfg.boardPos}:null, inner:{...bagCfg.inner}, src:bagCfg.src||'' };
+  if(ex){ ex.name=name; ex.cfg=cfg; }
+  else { const s={ id:'B'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), name, cfg };
+    bagStore.push(s); bagCfg.storeId=s.id; }
+  saveStore(); refreshStoreSelect(); applyBagCfgToMain();
+};
+let bgcDelArm=0;
+$('bgcStoreDel').onclick=e=>{
+  if(!bagCfg||!bagCfg.storeId) return;
+  const s=bagStore.find(x=>x.id===bagCfg.storeId); if(!s) return;
+  if(!bgcDelArm){ bgcDelArm=1; e.target.textContent='确认删除？';
+    setTimeout(()=>{ bgcDelArm=0; e.target.textContent='删除包型'; },2500); return; }
+  bgcDelArm=0; e.target.textContent='删除包型';
+  bagStore=bagStore.filter(x=>x.id!==s.id);
+  bagCfg.storeId=null; customBag.storeId=null;
+  saveStore(); refreshStoreSelect(); syncControls();
+};
+/* ── 包型对比 ── */
+let cmpSel=new Set(['__current']);
+function cmpItems(){
+  const items=[];
+  if(cmpSel.has('__current')) items.push({ id:'__current', name:'当前配置',
+    cfg:{ w:+customBag.w, h:+customBag.h, bagW:+customBag.bagW, bagH:+customBag.bagH,
+      boardPos:customBag.boardPos, img:customBag.img } });
+  bagStore.forEach(s=>{ if(cmpSel.has(s.id)) items.push({ id:s.id, name:s.name,
+    cfg:{ ...s.cfg, img:(s._img&&s._src===s.cfg.src)?s._img:null } }); });
+  return items;
+}
+function drawBagPreset(ctx,cw,ch,cfg){   // 包型卡片：背景铺满 + 痛板矩形
+  const w=Math.max(5,+cfg.w||30), h=Math.max(5,+cfg.h||18);
+  const bw=Math.max(w,+cfg.bagW||w+6), bh=Math.max(h,+cfg.bagH||h+6);
+  const k=Math.min(cw/bw, ch/bh);
+  ctx.save(); ctx.translate((cw-bw*k)/2,(ch-bh*k)/2);
+  ctx.fillStyle=C('#2A2E33','#e6eaed'); ctx.fillRect(0,0,bw*k,bh*k);
+  if(cfg.img&&cfg.img.complete&&cfg.img.naturalWidth){
+    const iw=cfg.img.naturalWidth, ih=cfg.img.naturalHeight, s=Math.max(bw*k/iw, bh*k/ih);
+    ctx.drawImage(cfg.img,(bw*k-iw*s)/2,(bh*k-ih*s)/2,iw*s,ih*s);
+  }
+  const bp=cfg.boardPos||{x:(bw-w)/2,y:(bh-h)/2};
+  ctx.fillStyle=S.bg; ctx.fillRect(bp.x*k,bp.y*k,w*k,h*k);
+  ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=1; ctx.strokeRect(bp.x*k,bp.y*k,w*k,h*k);
+  ctx.restore();
+}
+function buildCmpList(){
+  const box=$('cmpList'); box.innerHTML='';
+  const mk=(id,label)=>{ const l=document.createElement('label'); l.className='chk';
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=cmpSel.has(id);
+    cb.onchange=()=>{ cb.checked?cmpSel.add(id):cmpSel.delete(id); renderCmp(); };
+    l.appendChild(cb); l.appendChild(document.createTextNode(' '+label)); box.appendChild(l); };
+  mk('__current','当前配置（主页面）');
+  bagStore.forEach(s=>mk(s.id,s.name));
+}
+function renderCmp(){
+  const stage=$('cmpStage'); stage.innerHTML='';
+  const items=cmpItems();
+  if(!items.length){ const d=document.createElement('div'); d.className='hint'; d.style.padding='20px';
+    d.textContent='请在左侧勾选要对比的包型'; stage.appendChild(d); return; }
+  const ch=280;
+  for(const it of items){
+    const w=Math.max(5,+it.cfg.w||30), h=Math.max(5,+it.cfg.h||18);
+    const bw=Math.max(w,+it.cfg.bagW||w+6), bh=Math.max(h,+it.cfg.bagH||h+6);
+    const cw=Math.max(60,Math.round(ch*bw/bh));
+    const card=document.createElement('div'); card.style.textAlign='center';
+    const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+    cv.style.background='var(--panel2)'; cv.style.boxShadow='var(--shadow-sm)';
+    drawBagPreset(cv.getContext('2d'),cw,ch,it.cfg);
+    const cap=document.createElement('div'); cap.style.cssText='font-size:11px;color:var(--dim);margin-top:6px';
+    cap.textContent=`${it.name} · 痛板 ${fmt(w)}×${fmt(h)} · 包体 ${fmt(bw)}×${fmt(bh)}`;
+    card.appendChild(cv); card.appendChild(cap); stage.appendChild(card);
+  }
+}
+function openCmp(){
+  if(!bagCfg) return;
+  bagStore.forEach(s=>{ if(s.cfg.src&&(!s._img||s._src!==s.cfg.src)){
+    const im=new Image(); im.onload=()=>{ s._img=im; s._src=s.cfg.src; if(!$('cmpOverlay').hidden) renderCmp(); }; im.src=s.cfg.src; } });
+  buildCmpList();
+  $('cmpOverlay').hidden=false; renderCmp();
+}
+$('bgcCompare').onclick=()=>{ if(!bagCfg) return; openCmp(); };
+$('cmpClose').onclick=()=>{ $('cmpOverlay').hidden=true; };
+$('cmpClose2').onclick=()=>{ $('cmpOverlay').hidden=true; };
+new ResizeObserver(()=>{ if(!$('cmpOverlay').hidden) renderCmp(); }).observe($('cmpStage'));
 
 /* ============================================================
    照片透视矫正：框选包体 / 痛板四边形 → 单应变换拉正贴合
