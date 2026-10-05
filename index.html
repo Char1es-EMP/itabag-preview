@@ -236,21 +236,23 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
         <button class="btn" id="expPreview">导出预览效果图</button>
       </div>
 
-      <div class="h">尺寸设置 (cm)</div>
-      <div class="grid2">
-        <div class="f"><label>痛窗层宽</label><input type="number" data-dim="outerW" step="0.1"></div>
-        <div class="f"><label>痛窗层高</label><input type="number" data-dim="outerH" step="0.1"></div>
-        <div class="f"><label>可视区上边宽</label><input type="number" data-dim="visTop" step="0.1"></div>
-        <div class="f"><label>可视区下边宽</label><input type="number" data-dim="visBottom" step="0.1"></div>
-        <div class="f"><label>可视高（全展开）</label><input type="number" data-dim="visH" step="0.1"></div>
-        <div class="f"><label>可视高（半遮挡）</label><input type="number" data-dim="halfH" step="0.1"></div>
-        <div class="f"><label>痛板宽</label><input type="number" data-dim="boardW" step="0.1"></div>
-        <div class="f"><label>痛板高</label><input type="number" data-dim="boardH" step="0.1"></div>
-        <div class="f"><label>包体宽</label><input type="number" data-dim="bagW" step="0.1"></div>
-        <div class="f"><label>包体高</label><input type="number" data-dim="bagH" step="0.1"></div>
+      <div id="dimVisual">
+        <div class="h">尺寸设置 (cm · 仅 VASH)</div>
+        <div class="grid2">
+          <div class="f"><label>痛窗层宽</label><input type="number" data-dim="outerW" step="0.1"></div>
+          <div class="f"><label>痛窗层高</label><input type="number" data-dim="outerH" step="0.1"></div>
+          <div class="f"><label>可视区上边宽</label><input type="number" data-dim="visTop" step="0.1"></div>
+          <div class="f"><label>可视区下边宽</label><input type="number" data-dim="visBottom" step="0.1"></div>
+          <div class="f"><label>可视高（全展开）</label><input type="number" data-dim="visH" step="0.1"></div>
+          <div class="f"><label>可视高（半遮挡）</label><input type="number" data-dim="halfH" step="0.1"></div>
+          <div class="f"><label>痛板宽</label><input type="number" data-dim="boardW" step="0.1"></div>
+          <div class="f"><label>痛板高</label><input type="number" data-dim="boardH" step="0.1"></div>
+          <div class="f"><label>包体宽</label><input type="number" data-dim="bagW" step="0.1"></div>
+          <div class="f"><label>包体高</label><input type="number" data-dim="bagH" step="0.1"></div>
+        </div>
+        <div class="btns" style="margin-top:10px"><button class="btn" id="resetDims">恢复默认尺寸</button></div>
+        <div class="hint">仅 VASH 痛窗模式使用；自定义包型的尺寸在「⚙ 包型设置」中调整。可视区、痛板与痛窗层均为底边对齐、水平居中。</div>
       </div>
-      <div class="btns" style="margin-top:10px"><button class="btn" id="resetDims">恢复默认尺寸</button></div>
-      <div class="hint">可视区、痛板与痛窗层均为底边对齐、水平居中。</div>
     </div>
   </aside>
 
@@ -1046,8 +1048,8 @@ function syncControls(){
   $('guides').checked=S.guides;
   $('bg').value=S.bg; $('bgV').textContent=S.bg.toUpperCase();
   $('dpi').value=S.dpi; $('fmt').value=S.fmt; $('bleed').value=S.bleed; $('bleedN').value=S.bleed;
-  document.querySelectorAll('[data-dim]').forEach(i=>{ i.value=S[i.dataset.dim]; i.disabled=S.bagMode==='custom'; });   // 自定义包型的尺寸在包型设置中调整
-  $('resetDims').disabled=S.bagMode==='custom';
+  $('dimVisual').style.display=S.bagMode==='custom'?'none':'';   // 尺寸设置仅 VASH 模式使用
+  document.querySelectorAll('[data-dim]').forEach(i=>{ i.value=S[i.dataset.dim]; });
   $('bagVisual').style.display=S.bagMode==='custom'?'none':'';   // 自定义包型不含包体配色 / 加强筋 / 遮挡
 }
 function commit(){ save(); syncControlsLight(); syncLayerRows(); draw(); }
