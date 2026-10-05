@@ -44,10 +44,11 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
   box-shadow:0 4px 14px rgba(87,84,232,.35)}
 .brand h1{margin:0;font-size:15.5px;font-weight:700;letter-spacing:.01em}
 .brand p{margin:2px 0 0;color:var(--dim);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:600}
-.projLinks{display:flex;gap:8px;padding:0 18px 14px}
-.projLinks a{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;
-  color:var(--dim);text-decoration:none;padding:5px 10px;border:1px solid var(--line);background:var(--panel2);transition:all .15s}
-.projLinks a:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.projLinks{display:flex;padding:0 18px 14px}
+.projLinks a.ghBtn{width:32px;height:32px;border-radius:50% !important;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--line);background:var(--panel2);color:var(--text);transition:all .15s}
+.projLinks a.ghBtn:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.projLinks a.ghBtn svg{width:16px;height:16px}
 
 /* ── 左侧：图层 ───────────────────────────────── */
 .layers header{display:flex;align-items:center;gap:8px;padding:2px 18px 12px;font-size:11px;
@@ -183,11 +184,9 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
       <div><h1>痛包预览模拟器</h1><p>ITA-BAG PREVIEW SIMULATOR</p></div>
     </header>
     <div class="projLinks">
-      <a href="https://github.com/Char1es-EMP/itabag-preview" target="_blank" rel="noopener" title="GitHub 仓库">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
-        项目地址
+      <a class="ghBtn" href="https://github.com/Char1es-EMP/itabag-preview" target="_blank" rel="noopener" title="项目地址（GitHub）">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
       </a>
-      <a href="https://char1es-emp.github.io/itabag-preview/" target="_blank" rel="noopener" title="在线使用地址">在线使用</a>
     </div>
     <div class="controls">
       <div class="h">快速对齐</div>
