@@ -99,7 +99,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
 .h::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
 .f{margin:10px 0}
 .f>label{display:block;color:var(--dim);font-size:11.5px;font-weight:500;margin-bottom:5px}
-.f select,.f input[type=number]{width:100%;background:var(--panel2);border:1.5px solid transparent;color:var(--text);
+.f select,.f input[type=number],.f input[type=text]{width:100%;background:var(--panel2);border:1.5px solid transparent;color:var(--text);
   padding:8px 10px;font:inherit;font-size:13px;border-radius:10px;outline:none;transition:border-color .15s,background .15s}
 .f input:focus,.f select:focus{border-color:var(--accent);background:var(--panel)}
 .hint{color:var(--dim);font-size:11px;margin-top:5px;line-height:1.55}
@@ -128,7 +128,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
 .drop:hover b,.drop.over b{color:var(--accent)}
 
 /* ── 子页面（模板 / 包型设置）─────────────────── */
-.tplOverlay{position:fixed;inset:0;background:rgba(24,28,38,.45);backdrop-filter:blur(5px);display:grid;place-items:center;z-index:50}
+.tplOverlay{position:fixed;inset:0;background:rgba(24,28,38,.45);display:grid;place-items:center;z-index:50}
 .tplOverlay[hidden]{display:none}
 .tplWrap{width:min(1000px,95vw);height:min(700px,93vh);background:var(--panel);border-radius:20px;
   box-shadow:var(--shadow-lg);display:flex;flex-direction:column;overflow:hidden}
@@ -279,7 +279,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
       <div class="h">上传痛板</div>
       <div class="drop" id="drop"><b>点击选择痛板图片</b>（可多选，每张图片为一个图层，排在痛板上）<br>或拖入 / 粘贴 (Ctrl+V) 到页面任意位置</div>
       <input type="file" id="file" accept="image/*" hidden multiple>
-      <div class="hint" id="imgInfo">添加周边</div>
+      <div class="h" id="imgInfo">添加周边</div>
       <button class="btn" id="tplNew" style="width:100%;margin-top:2px">▦ 制作模板图形（矩形 / 圆形）</button>
     </section>
     <aside class="layers">
@@ -1191,6 +1191,7 @@ function syncLayerRows(){
   });
   $('lyCount').textContent=layers.length?`${layers.length} 张`:'空';
   $('imgInfo').textContent=layers.length?`共 ${layers.length} 个图层 · 选中：${curLayer()?curLayer().name:'无'}`:'添加周边';
+  $('imgInfo').className=layers.length?'hint':'h';   // 空态与节标题同款样式
 }
 const moveSel=dir=>{ const L=curLayer(); if(!L) return;
   const i=layers.indexOf(L); layers.splice(i,1);
